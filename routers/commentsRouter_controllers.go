@@ -7,7 +7,7 @@ import (
 
 func init() {
 
-    beego.GlobalControllerRouter["github.com/udistrital/sga_trabajo_docente_mid/controllers:AsignacionController"] = append(beego.GlobalControllerRouter["github.com/udistrital/sga_trabajo_docente_mid/controllers:AsignacionController"],
+    beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:AsignacionController"] = append(beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:AsignacionController"],
         beego.ControllerComments{
             Method: "Asignacion",
             Router: "/",
@@ -16,7 +16,7 @@ func init() {
             Filters: nil,
             Params: nil})
 
-    beego.GlobalControllerRouter["github.com/udistrital/sga_trabajo_docente_mid/controllers:AsignacionController"] = append(beego.GlobalControllerRouter["github.com/udistrital/sga_trabajo_docente_mid/controllers:AsignacionController"],
+    beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:AsignacionController"] = append(beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:AsignacionController"],
         beego.ControllerComments{
             Method: "AsignacionDocente",
             Router: "/docente",
@@ -25,7 +25,7 @@ func init() {
             Filters: nil,
             Params: nil})
 
-    beego.GlobalControllerRouter["github.com/udistrital/sga_trabajo_docente_mid/controllers:DocenteController"] = append(beego.GlobalControllerRouter["github.com/udistrital/sga_trabajo_docente_mid/controllers:DocenteController"],
+    beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:DocenteController"] = append(beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:DocenteController"],
         beego.ControllerComments{
             Method: "DocumentoDocenteVinculacion",
             Router: "/documento",
@@ -34,7 +34,7 @@ func init() {
             Filters: nil,
             Params: nil})
 
-    beego.GlobalControllerRouter["github.com/udistrital/sga_trabajo_docente_mid/controllers:DocenteController"] = append(beego.GlobalControllerRouter["github.com/udistrital/sga_trabajo_docente_mid/controllers:DocenteController"],
+    beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:DocenteController"] = append(beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:DocenteController"],
         beego.ControllerComments{
             Method: "NombreDocenteVinculacion",
             Router: "/nombre",
@@ -43,7 +43,7 @@ func init() {
             Filters: nil,
             Params: nil})
 
-    beego.GlobalControllerRouter["github.com/udistrital/sga_trabajo_docente_mid/controllers:EspacioAcademicoController"] = append(beego.GlobalControllerRouter["github.com/udistrital/sga_trabajo_docente_mid/controllers:EspacioAcademicoController"],
+    beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:EspacioAcademicoController"] = append(beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:EspacioAcademicoController"],
         beego.ControllerComments{
             Method: "GrupoEspacioAcademico",
             Router: "/grupo",
@@ -52,7 +52,7 @@ func init() {
             Filters: nil,
             Params: nil})
 
-    beego.GlobalControllerRouter["github.com/udistrital/sga_trabajo_docente_mid/controllers:EspacioAcademicoController"] = append(beego.GlobalControllerRouter["github.com/udistrital/sga_trabajo_docente_mid/controllers:EspacioAcademicoController"],
+    beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:EspacioAcademicoController"] = append(beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:EspacioAcademicoController"],
         beego.ControllerComments{
             Method: "GrupoEspacioAcademicoPadre",
             Router: "/grupo-padre",
@@ -61,7 +61,7 @@ func init() {
             Filters: nil,
             Params: nil})
 
-    beego.GlobalControllerRouter["github.com/udistrital/sga_trabajo_docente_mid/controllers:EspacioFisicoController"] = append(beego.GlobalControllerRouter["github.com/udistrital/sga_trabajo_docente_mid/controllers:EspacioFisicoController"],
+    beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:EspacioFisicoController"] = append(beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:EspacioFisicoController"],
         beego.ControllerComments{
             Method: "EspacioFisicoDependencia",
             Router: "/dependencia",
@@ -70,7 +70,7 @@ func init() {
             Filters: nil,
             Params: nil})
 
-    beego.GlobalControllerRouter["github.com/udistrital/sga_trabajo_docente_mid/controllers:EspacioFisicoController"] = append(beego.GlobalControllerRouter["github.com/udistrital/sga_trabajo_docente_mid/controllers:EspacioFisicoController"],
+    beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:EspacioFisicoController"] = append(beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:EspacioFisicoController"],
         beego.ControllerComments{
             Method: "DisponibilidadEspacioFisico",
             Router: "/disponibilidad",
@@ -79,7 +79,7 @@ func init() {
             Filters: nil,
             Params: nil})
 
-    beego.GlobalControllerRouter["github.com/udistrital/sga_trabajo_docente_mid/controllers:PlanController"] = append(beego.GlobalControllerRouter["github.com/udistrital/sga_trabajo_docente_mid/controllers:PlanController"],
+    beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:PlanController"] = append(beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:PlanController"],
         beego.ControllerComments{
             Method: "DefinePlanTrabajoDocente",
             Router: "/",
@@ -88,7 +88,7 @@ func init() {
             Filters: nil,
             Params: nil})
 
-    beego.GlobalControllerRouter["github.com/udistrital/sga_trabajo_docente_mid/controllers:PlanController"] = append(beego.GlobalControllerRouter["github.com/udistrital/sga_trabajo_docente_mid/controllers:PlanController"],
+    beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:PlanController"] = append(beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:PlanController"],
         beego.ControllerComments{
             Method: "PlanTrabajoDocenteAsignacion",
             Router: "/",
@@ -97,7 +97,7 @@ func init() {
             Filters: nil,
             Params: nil})
 
-    beego.GlobalControllerRouter["github.com/udistrital/sga_trabajo_docente_mid/controllers:PlanController"] = append(beego.GlobalControllerRouter["github.com/udistrital/sga_trabajo_docente_mid/controllers:PlanController"],
+    beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:PlanController"] = append(beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:PlanController"],
         beego.ControllerComments{
             Method: "CopiarPlanTrabajoDocente",
             Router: "/copiar",
@@ -106,7 +106,7 @@ func init() {
             Filters: nil,
             Params: nil})
 
-    beego.GlobalControllerRouter["github.com/udistrital/sga_trabajo_docente_mid/controllers:PlanController"] = append(beego.GlobalControllerRouter["github.com/udistrital/sga_trabajo_docente_mid/controllers:PlanController"],
+    beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:PlanController"] = append(beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:PlanController"],
         beego.ControllerComments{
             Method: "PlanPreaprobado",
             Router: "/preaprobado",
@@ -115,7 +115,7 @@ func init() {
             Filters: nil,
             Params: nil})
 
-    beego.GlobalControllerRouter["github.com/udistrital/sga_trabajo_docente_mid/controllers:PreasignacionController"] = append(beego.GlobalControllerRouter["github.com/udistrital/sga_trabajo_docente_mid/controllers:PreasignacionController"],
+    beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:PreasignacionController"] = append(beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:PreasignacionController"],
         beego.ControllerComments{
             Method: "Preasignacion",
             Router: "/",
@@ -124,7 +124,7 @@ func init() {
             Filters: nil,
             Params: nil})
 
-    beego.GlobalControllerRouter["github.com/udistrital/sga_trabajo_docente_mid/controllers:PreasignacionController"] = append(beego.GlobalControllerRouter["github.com/udistrital/sga_trabajo_docente_mid/controllers:PreasignacionController"],
+    beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:PreasignacionController"] = append(beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:PreasignacionController"],
         beego.ControllerComments{
             Method: "DeletePreasignacion",
             Router: "/:preasignacion_id",
@@ -133,7 +133,7 @@ func init() {
             Filters: nil,
             Params: nil})
 
-    beego.GlobalControllerRouter["github.com/udistrital/sga_trabajo_docente_mid/controllers:PreasignacionController"] = append(beego.GlobalControllerRouter["github.com/udistrital/sga_trabajo_docente_mid/controllers:PreasignacionController"],
+    beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:PreasignacionController"] = append(beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:PreasignacionController"],
         beego.ControllerComments{
             Method: "Aprobar",
             Router: "/aprobar",
@@ -142,7 +142,7 @@ func init() {
             Filters: nil,
             Params: nil})
 
-    beego.GlobalControllerRouter["github.com/udistrital/sga_trabajo_docente_mid/controllers:PreasignacionController"] = append(beego.GlobalControllerRouter["github.com/udistrital/sga_trabajo_docente_mid/controllers:PreasignacionController"],
+    beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:PreasignacionController"] = append(beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:PreasignacionController"],
         beego.ControllerComments{
             Method: "PreasignacionDocente",
             Router: "/docente",
@@ -151,7 +151,7 @@ func init() {
             Filters: nil,
             Params: nil})
 
-    beego.GlobalControllerRouter["github.com/udistrital/sga_trabajo_docente_mid/controllers:ReportesController"] = append(beego.GlobalControllerRouter["github.com/udistrital/sga_trabajo_docente_mid/controllers:ReportesController"],
+    beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:ReportesController"] = append(beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:ReportesController"],
         beego.ControllerComments{
             Method: "ReporteCargaLectiva",
             Router: "/plan-trabajo-docente",
@@ -160,7 +160,7 @@ func init() {
             Filters: nil,
             Params: nil})
 
-    beego.GlobalControllerRouter["github.com/udistrital/sga_trabajo_docente_mid/controllers:ReportesController"] = append(beego.GlobalControllerRouter["github.com/udistrital/sga_trabajo_docente_mid/controllers:ReportesController"],
+    beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:ReportesController"] = append(beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:ReportesController"],
         beego.ControllerComments{
             Method: "ReporteVerificacionCumplimientoPTD",
             Router: "/verificacion-cumplimiento-ptd",

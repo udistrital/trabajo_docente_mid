@@ -175,7 +175,7 @@ func OcupacionEspacioFisico(salon, vigencia, plan string) requestmanager.APIResp
 							if carga.(map[string]interface{})["plan_docente_id"] != plan {
 								if colId, colExists := carga.(map[string]interface{})["colocacion_espacio_academico_id"]; colExists {
 									var horarioJSON map[string]interface{}
-									if errGetColocacion := request.GetJson("http://"+beego.AppConfig.String("HorarioService")+"colocacion-espacio-academico/"+colId.(string), &colocacion); errGetColocacion == nil {
+									if errGetColocacion := request.GetJson("https://"+beego.AppConfig.String("HorarioService")+"colocacion-espacio-academico/"+colId.(string), &colocacion); errGetColocacion == nil {
 										if colocacion["Success"].(bool) {
 											json.Unmarshal([]byte(colocacion["Data"].(map[string]interface{})["ColocacionEspacioAcademico"].(string)), &horarioJSON)
 											cargas = append(cargas, map[string]interface{}{

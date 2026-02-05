@@ -7,8 +7,8 @@ import (
 
 	"github.com/astaxie/beego"
 	"github.com/astaxie/beego/logs"
-	"github.com/udistrital/sga_trabajo_docente_mid/models"
-	"github.com/udistrital/sga_trabajo_docente_mid/utils"
+	"github.com/udistrital/trabajo_docente_mid/models"
+	"github.com/udistrital/trabajo_docente_mid/utils"
 	request "github.com/udistrital/utils_oas/request"
 	requestmanager "github.com/udistrital/utils_oas/requestresponse"
 )
@@ -61,7 +61,7 @@ func DefinePTD(body map[string]interface{}) requestmanager.APIResponse {
 		}
 
 		if carga.(map[string]interface{})["id"] == nil {
-			if errPostPlacement := request.SendJson("http://"+beego.AppConfig.String("HorarioService")+"colocacion-espacio-academico/",
+			if errPostPlacement := request.SendJson("https://"+beego.AppConfig.String("HorarioService")+"colocacion-espacio-academico/",
 				"POST", &resColocacion, bodyColocacion); errPostPlacement == nil {
 				if resColocacion["Success"].(bool) {
 					bodyCarga["colocacion_espacio_academico_id"] = resColocacion["Data"].(map[string]interface{})["_id"]
@@ -87,7 +87,7 @@ func DefinePTD(body map[string]interface{}) requestmanager.APIResponse {
 					resultadoCargas = append(resultadoCargas, map[string]interface{}{"id": carga.(map[string]interface{})["espacio_academico_id"], "creado": false})
 				}
 			}
-			if errPutColocacion := request.SendJson("http://"+beego.AppConfig.String("HorarioService")+"colocacion-espacio-academico/"+carga.(map[string]interface{})["colocacion_id"].(string),
+			if errPutColocacion := request.SendJson("https://"+beego.AppConfig.String("HorarioService")+"colocacion-espacio-academico/"+carga.(map[string]interface{})["colocacion_id"].(string),
 				"PUT", &resColocacion, bodyColocacion); errPutColocacion == nil {
 			}
 		} else {
@@ -95,7 +95,7 @@ func DefinePTD(body map[string]interface{}) requestmanager.APIResponse {
 			if errPlanTrabajo := request.GetJson("http://"+beego.AppConfig.String("PlanTrabajoDocenteService")+"carga_plan/"+carga.(map[string]interface{})["id"].(string), &planTrabajoData); errPlanTrabajo == nil {
 				if planTrabajoData["Success"].(bool) {
 					if colId, colExists := planTrabajoData["Data"].(map[string]interface{})["colocacion_espacio_academico_id"]; colExists {
-						if errPutColocacion := request.SendJson("http://"+beego.AppConfig.String("HorarioService")+"colocacion-espacio-academico/"+colId.(string),
+						if errPutColocacion := request.SendJson("https://"+beego.AppConfig.String("HorarioService")+"colocacion-espacio-academico/"+colId.(string),
 							"PUT", &resColocacion, bodyColocacion); errPutColocacion == nil {
 							if resColocacion["Success"].(bool) {
 								bodyCarga["colocacion_espacio_academico_id"] = resColocacion["Data"].(map[string]interface{})["_id"]
@@ -112,7 +112,7 @@ func DefinePTD(body map[string]interface{}) requestmanager.APIResponse {
 							}
 						}
 					} else {
-						if errPutColocacion := request.SendJson("http://"+beego.AppConfig.String("HorarioService")+"colocacion-espacio-academico/",
+						if errPutColocacion := request.SendJson("https://"+beego.AppConfig.String("HorarioService")+"colocacion-espacio-academico/",
 							"POST", &resColocacion, bodyColocacion); errPutColocacion == nil {
 							if resColocacion["Success"].(bool) {
 								bodyCarga["colocacion_espacio_academico_id"] = resColocacion["Data"].(map[string]interface{})["_id"]
@@ -172,7 +172,7 @@ func PlanTrabajoDocente(docente, vigencia, vinculacion int64) requestmanager.API
 	var resPlan map[string]interface{}
 	if errPlan := request.GetJson("http://"+beego.AppConfig.String("PlanTrabajoDocenteService")+
 		fmt.Sprintf("plan_docente?query=activo:true,docente_id:%d,periodo_id:%d&fields=tipo_vinculacion_id,soporte_documental,respuesta,resumen,docente_id,periodo_id,estado_plan_id", docente, vigencia), &resPlan); errPlan == nil {
-		if fmt.Sprintf("%v", resPlan["Data"]) != "[]" {
+			if fmt.Sprintf("%v", resPlan["Data"]) != "[]" {
 			response := consultarDetallePlan(resPlan["Data"].([]interface{}), vinculacion)
 			return requestmanager.APIResponseDTO(true, 200, response)
 			/* c.Ctx.Output.SetStatus(200)
@@ -256,7 +256,7 @@ func consultarDetallePlan(planes []interface{}, idVinculacion int64) map[string]
 					var salonId string
 
 					if colId, colExists := carga.(map[string]interface{})["colocacion_espacio_academico_id"]; colExists {
-						if errColocacion := request.GetJson("http://"+beego.AppConfig.String("HorarioService")+"colocacion-espacio-academico/"+colId.(string), &resColocacion); errColocacion == nil {
+						if errColocacion := request.GetJson("https://"+beego.AppConfig.String("HorarioService")+"colocacion-espacio-academico/"+colId.(string), &resColocacion); errColocacion == nil {
 							if resColocacion["Success"].(bool) {
 								json.Unmarshal([]byte(resColocacion["Data"].(map[string]interface{})["ResumenColocacionEspacioFisico"].(string)), &resumenColocacion)
 								json.Unmarshal([]byte(resColocacion["Data"].(map[string]interface{})["ColocacionEspacioAcademico"].(string)), &horario)
@@ -313,7 +313,7 @@ func consultarDetallePlan(planes []interface{}, idVinculacion int64) map[string]
 			for _, preasignacion := range resPreasignacion["Data"].([]interface{}) {
 				var resEspacioAcademico map[string]interface{}
 				if memEspaciosDetalle[preasignacion.(map[string]interface{})["espacio_academico_id"].(string)] == nil {
-					if errEspacioAcademico := request.GetJson("http://"+beego.AppConfig.String("EspaciosAcademicosService")+"espacio-academico/"+preasignacion.(map[string]interface{})["espacio_academico_id"].(string), &resEspacioAcademico); errEspacioAcademico == nil {
+					if errEspacioAcademico := request.GetJson("https://"+beego.AppConfig.String("EspaciosAcademicosService")+"espacio-academico/"+preasignacion.(map[string]interface{})["espacio_academico_id"].(string), &resEspacioAcademico); errEspacioAcademico == nil {
 						modular := false
 						if val, ok := resEspacioAcademico["Data"].(map[string]interface{})["espacio_modular"]; ok {
 							modular = val.(bool)
@@ -489,7 +489,7 @@ func obtenerCargaLectiva(docente, vigenciaAnterior, vigencia, vinculacion int64,
 		for _, carga := range carga_planAnterior {
 			if carga.Horario == "" && carga.Colocacion_espacio_academico_id != "" {
 				var colocacion map[string]interface{}
-				if errGetColocacion := request.GetJson("http://"+beego.AppConfig.String("HorarioService")+
+				if errGetColocacion := request.GetJson("https://"+beego.AppConfig.String("HorarioService")+
 					"colocacion-espacio-academico/"+carga.Colocacion_espacio_academico_id, &colocacion); errGetColocacion == nil {
 					if colocacion["Success"].(bool) {
 						var resumenColocacionJSON map[string]interface{}
@@ -587,7 +587,7 @@ func obtenerCargaActividades(carga_planAnterior []models.CargaPlan) (map[string]
 	for _, carga := range carga_planAnterior {
 		if carga.Horario == "" && carga.Colocacion_espacio_academico_id != "" {
 			var colocacion map[string]interface{}
-			if errGetColocacion := request.GetJson("http://"+beego.AppConfig.String("HorarioService")+
+			if errGetColocacion := request.GetJson("https://"+beego.AppConfig.String("HorarioService")+
 				"colocacion-espacio-academico/"+carga.Colocacion_espacio_academico_id, &colocacion); errGetColocacion == nil {
 				if colocacion["Success"].(bool) {
 					var resumenColocacionJSON map[string]interface{}
@@ -681,7 +681,7 @@ func ListaPlanPreaprobado(vigencia, proyecto int64) requestmanager.APIResponse {
 	planes_proyecto := []models.PlanDocente{}
 
 	for _, plan := range lista_planes {
-		_, err := requestmanager.Get("http://"+beego.AppConfig.String("EspaciosAcademicosService")+
+		_, err := requestmanager.Get("https://"+beego.AppConfig.String("EspaciosAcademicosService")+
 			fmt.Sprintf("espacio-academico?query=activo:true,periodo_id:%d,proyecto_academico_id:%d,docente_id:%s&fields=_id&limit=0", vigencia, proyecto, plan.Docente_id), requestmanager.ParseResponseFormato1)
 		if err == nil {
 			planes_proyecto = append(planes_proyecto, plan)
@@ -764,7 +764,7 @@ func consultarEspaciosAcademicosInfoPadre(docente, periodo, vinculacion int64) (
 	preasignaciones := []models.PreAsignacion{}
 	utils.ParseData(response, &preasignaciones)
 	for _, preasignacion := range preasignaciones {
-		response, err := requestmanager.Get("http://"+beego.AppConfig.String("EspaciosAcademicosService")+
+		response, err := requestmanager.Get("https://"+beego.AppConfig.String("EspaciosAcademicosService")+
 			fmt.Sprintf("espacio-academico?query=activo:true,_id:%s&fields=_id,nombre,espacio_academico_padre&limit=1", preasignacion.Espacio_academico_id), requestmanager.ParseResponseFormato1)
 		if err != nil {
 			return nil, fmt.Errorf("EspaciosAcademicosService (espacio-academico): %s", err.Error())

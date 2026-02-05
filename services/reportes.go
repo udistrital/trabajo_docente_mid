@@ -13,8 +13,8 @@ import (
 	"github.com/astaxie/beego/logs"
 	"github.com/k0kubun/pp"
 	"github.com/phpdave11/gofpdf"
-	"github.com/udistrital/sga_trabajo_docente_mid/models"
-	"github.com/udistrital/sga_trabajo_docente_mid/utils"
+	"github.com/udistrital/trabajo_docente_mid/models"
+	"github.com/udistrital/trabajo_docente_mid/utils"
 	requestmanager "github.com/udistrital/utils_oas/requestresponse"
 	"github.com/udistrital/utils_oas/xlsx2pdf"
 	"github.com/xuri/excelize/v2"
@@ -93,7 +93,7 @@ func obtenerInformacionRequeridaRepCargaLectiva(docente, vinculacion, periodo in
 	utils.ParseData(resp, &datosCargaPlan)
 
 	for i := 0; i < len(datosCargaPlan); i++ {
-		resp, err := requestmanager.Get("http://"+beego.AppConfig.String("HorarioService")+
+		resp, err := requestmanager.Get("https://"+beego.AppConfig.String("HorarioService")+
 			fmt.Sprintf("colocacion-espacio-academico/%s", datosCargaPlan[i].Colocacion_espacio_academico_id), requestmanager.ParseResponseFormato2)
 
 		if err != nil {
@@ -216,7 +216,7 @@ func generarReporteCargaLectiva(infoRequerida infoRequeridaRepCL, cargaTipo stri
 
 		nombreCarga := ""
 		if horarioIs.TipoCarga == CargaLectiva {
-			resp, err := requestmanager.Get("http://"+beego.AppConfig.String("EspaciosAcademicosService")+
+			resp, err := requestmanager.Get("https://"+beego.AppConfig.String("EspaciosAcademicosService")+
 				fmt.Sprintf("espacio-academico/%s", carga.Espacio_academico_id), requestmanager.ParseResponseFormato1)
 			if err != nil {
 				logs.Error(err)
@@ -467,7 +467,7 @@ func obtenerInformacionRequeridaRepCumplimiento(vigencia int64, proyectoFilter s
 		}
 
 		for idEspAcad := range agrupacionEspacios {
-			resp, err = requestmanager.Get("http://"+beego.AppConfig.String("EspaciosAcademicosService")+
+			resp, err = requestmanager.Get("https://"+beego.AppConfig.String("EspaciosAcademicosService")+
 				fmt.Sprintf("espacio-academico?query=_id:%s", idEspAcad), requestmanager.ParseResponseFormato1)
 			if err != nil {
 				logs.Error(err)

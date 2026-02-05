@@ -5,7 +5,7 @@ import (
 
 	"github.com/astaxie/beego"
 	"github.com/astaxie/beego/logs"
-	"github.com/udistrital/sga_trabajo_docente_mid/utils"
+	"github.com/udistrital/trabajo_docente_mid/utils"
 	request "github.com/udistrital/utils_oas/request"
 	requestmanager "github.com/udistrital/utils_oas/requestresponse"
 )
@@ -56,7 +56,7 @@ func ListaGruposEspaciosAcademicos(padre, vigencia string) requestmanager.APIRes
 
 func getAcademicSpacesByQuery(query string) (any, error) {
 	var resSpaces interface{}
-	urlAcademicSpaces := "http://" + beego.AppConfig.String("EspaciosAcademicosService") +
+	urlAcademicSpaces := "https://" + beego.AppConfig.String("EspaciosAcademicosService") +
 		"espacio-academico?" + query
 	if errSpace := request.GetJson(urlAcademicSpaces, &resSpaces); errSpace == nil {
 		if resSpaces.(map[string]interface{})["Data"] != nil {
