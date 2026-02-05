@@ -15,7 +15,7 @@ import (
 func ListaAsignacion(vigencia string) requestmanager.APIResponse {
 	var resPreasignaciones map[string]interface{}
 
-	if errPreasignacion := request.GetJson("http://"+beego.AppConfig.String("PlanTrabajoDocenteService")+"pre_asignacion?query=activo:true,aprobacion_docente:true,aprobacion_proyecto:true,"+
+	if errPreasignacion := request.GetJson("https://"+beego.AppConfig.String("PlanTrabajoDocenteService")+"pre_asignacion?query=activo:true,aprobacion_docente:true,aprobacion_proyecto:true,"+
 		"periodo_id:"+vigencia+"&fields=docente_id,tipo_vinculacion_id,plan_docente_id,periodo_id", &resPreasignaciones); errPreasignacion == nil {
 		if fmt.Sprintf("%v", resPreasignaciones["Data"]) != "[]" {
 			response := consultarDetalleAsignacion(resPreasignaciones["Data"].([]interface{}), false)
@@ -76,13 +76,13 @@ func consultarDetalleAsignacion(asignaciones []interface{}, forTeacher bool) []m
 
 			estadoPlan := "Sin definir"
 			plan_id := ""
-			if errPlan := request.GetJson("http://"+beego.AppConfig.String("PlanTrabajoDocenteService")+"plan_docente/"+fmt.Sprintf("%v", asignacion.(map[string]interface{})["plan_docente_id"]), &resPlan); errPlan == nil {
+			if errPlan := request.GetJson("https://"+beego.AppConfig.String("PlanTrabajoDocenteService")+"plan_docente/"+fmt.Sprintf("%v", asignacion.(map[string]interface{})["plan_docente_id"]), &resPlan); errPlan == nil {
 				idEstado := resPlan["Data"].(map[string]interface{})["estado_plan_id"].(string)
 				plan_id = resPlan["Data"].(map[string]interface{})["_id"].(string)
 				if idEstado == "Sin definir" {
 					memEstados[asignacion.(map[string]interface{})["plan_docente_id"].(string)] = resPlan["Data"].(map[string]interface{})["estado_plan_id"].(string)
 				} else {
-					if errEstado := request.GetJson("http://"+beego.AppConfig.String("PlanTrabajoDocenteService")+"estado_plan/"+idEstado, &resEstado); errEstado == nil {
+					if errEstado := request.GetJson("https://"+beego.AppConfig.String("PlanTrabajoDocenteService")+"estado_plan/"+idEstado, &resEstado); errEstado == nil {
 						memEstados[asignacion.(map[string]interface{})["plan_docente_id"].(string)] = resEstado["Data"].(map[string]interface{})["nombre"].(string)
 						estadoPlan = resEstado["Data"].(map[string]interface{})["codigo_abreviacion"].(string)
 					}
@@ -150,7 +150,7 @@ func consultarDetalleAsignacion(asignaciones []interface{}, forTeacher bool) []m
 func ListaAsignacionDocente(docente, vigencia string) requestmanager.APIResponse {
 	var resPreasignaciones map[string]interface{}
 
-	if errPreasignacion := request.GetJson("http://"+beego.AppConfig.String("PlanTrabajoDocenteService")+"pre_asignacion?query=activo:true,aprobacion_docente:true,aprobacion_proyecto:true,docente_id:"+docente+",periodo_id:"+vigencia+"&fields=docente_id,tipo_vinculacion_id,plan_docente_id,periodo_id", &resPreasignaciones); errPreasignacion == nil {
+	if errPreasignacion := request.GetJson("https://"+beego.AppConfig.String("PlanTrabajoDocenteService")+"pre_asignacion?query=activo:true,aprobacion_docente:true,aprobacion_proyecto:true,docente_id:"+docente+",periodo_id:"+vigencia+"&fields=docente_id,tipo_vinculacion_id,plan_docente_id,periodo_id", &resPreasignaciones); errPreasignacion == nil {
 		if fmt.Sprintf("%v", resPreasignaciones["Data"]) != "[]" {
 			response := consultarDetalleAsignacion(resPreasignaciones["Data"].([]interface{}), true)
 			return requestmanager.APIResponseDTO(true, 200, response)
