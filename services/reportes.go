@@ -93,7 +93,7 @@ func obtenerInformacionRequeridaRepCargaLectiva(docente, vinculacion, periodo in
 	utils.ParseData(resp, &datosCargaPlan)
 
 	for i := 0; i < len(datosCargaPlan); i++ {
-		resp, err := requestmanager.Get("http://"+beego.AppConfig.String("HorarioService")+
+		resp, err := requestmanager.Get("https://"+beego.AppConfig.String("HorarioService")+
 			fmt.Sprintf("colocacion-espacio-academico/%s", datosCargaPlan[i].Colocacion_espacio_academico_id), requestmanager.ParseResponseFormato2)
 
 		if err != nil {
