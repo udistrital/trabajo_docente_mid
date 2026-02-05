@@ -216,7 +216,7 @@ func generarReporteCargaLectiva(infoRequerida infoRequeridaRepCL, cargaTipo stri
 
 		nombreCarga := ""
 		if horarioIs.TipoCarga == CargaLectiva {
-			resp, err := requestmanager.Get("http://"+beego.AppConfig.String("EspaciosAcademicosService")+
+			resp, err := requestmanager.Get("https://"+beego.AppConfig.String("EspaciosAcademicosService")+
 				fmt.Sprintf("espacio-academico/%s", carga.Espacio_academico_id), requestmanager.ParseResponseFormato1)
 			if err != nil {
 				logs.Error(err)
@@ -467,7 +467,7 @@ func obtenerInformacionRequeridaRepCumplimiento(vigencia int64, proyectoFilter s
 		}
 
 		for idEspAcad := range agrupacionEspacios {
-			resp, err = requestmanager.Get("http://"+beego.AppConfig.String("EspaciosAcademicosService")+
+			resp, err = requestmanager.Get("https://"+beego.AppConfig.String("EspaciosAcademicosService")+
 				fmt.Sprintf("espacio-academico?query=_id:%s", idEspAcad), requestmanager.ParseResponseFormato1)
 			if err != nil {
 				logs.Error(err)

@@ -172,7 +172,7 @@ func PlanTrabajoDocente(docente, vigencia, vinculacion int64) requestmanager.API
 	var resPlan map[string]interface{}
 	if errPlan := request.GetJson("http://"+beego.AppConfig.String("PlanTrabajoDocenteService")+
 		fmt.Sprintf("plan_docente?query=activo:true,docente_id:%d,periodo_id:%d&fields=tipo_vinculacion_id,soporte_documental,respuesta,resumen,docente_id,periodo_id,estado_plan_id", docente, vigencia), &resPlan); errPlan == nil {
-		if fmt.Sprintf("%v", resPlan["Data"]) != "[]" {
+			if fmt.Sprintf("%v", resPlan["Data"]) != "[]" {
 			response := consultarDetallePlan(resPlan["Data"].([]interface{}), vinculacion)
 			return requestmanager.APIResponseDTO(true, 200, response)
 			/* c.Ctx.Output.SetStatus(200)
@@ -313,7 +313,7 @@ func consultarDetallePlan(planes []interface{}, idVinculacion int64) map[string]
 			for _, preasignacion := range resPreasignacion["Data"].([]interface{}) {
 				var resEspacioAcademico map[string]interface{}
 				if memEspaciosDetalle[preasignacion.(map[string]interface{})["espacio_academico_id"].(string)] == nil {
-					if errEspacioAcademico := request.GetJson("http://"+beego.AppConfig.String("EspaciosAcademicosService")+"espacio-academico/"+preasignacion.(map[string]interface{})["espacio_academico_id"].(string), &resEspacioAcademico); errEspacioAcademico == nil {
+					if errEspacioAcademico := request.GetJson("https://"+beego.AppConfig.String("EspaciosAcademicosService")+"espacio-academico/"+preasignacion.(map[string]interface{})["espacio_academico_id"].(string), &resEspacioAcademico); errEspacioAcademico == nil {
 						modular := false
 						if val, ok := resEspacioAcademico["Data"].(map[string]interface{})["espacio_modular"]; ok {
 							modular = val.(bool)
@@ -681,7 +681,7 @@ func ListaPlanPreaprobado(vigencia, proyecto int64) requestmanager.APIResponse {
 	planes_proyecto := []models.PlanDocente{}
 
 	for _, plan := range lista_planes {
-		_, err := requestmanager.Get("http://"+beego.AppConfig.String("EspaciosAcademicosService")+
+		_, err := requestmanager.Get("https://"+beego.AppConfig.String("EspaciosAcademicosService")+
 			fmt.Sprintf("espacio-academico?query=activo:true,periodo_id:%d,proyecto_academico_id:%d,docente_id:%s&fields=_id&limit=0", vigencia, proyecto, plan.Docente_id), requestmanager.ParseResponseFormato1)
 		if err == nil {
 			planes_proyecto = append(planes_proyecto, plan)
@@ -764,7 +764,7 @@ func consultarEspaciosAcademicosInfoPadre(docente, periodo, vinculacion int64) (
 	preasignaciones := []models.PreAsignacion{}
 	utils.ParseData(response, &preasignaciones)
 	for _, preasignacion := range preasignaciones {
-		response, err := requestmanager.Get("http://"+beego.AppConfig.String("EspaciosAcademicosService")+
+		response, err := requestmanager.Get("https://"+beego.AppConfig.String("EspaciosAcademicosService")+
 			fmt.Sprintf("espacio-academico?query=activo:true,_id:%s&fields=_id,nombre,espacio_academico_padre&limit=1", preasignacion.Espacio_academico_id), requestmanager.ParseResponseFormato1)
 		if err != nil {
 			return nil, fmt.Errorf("EspaciosAcademicosService (espacio-academico): %s", err.Error())
