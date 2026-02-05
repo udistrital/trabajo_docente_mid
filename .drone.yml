@@ -51,7 +51,7 @@ steps:
   image: golang:1.18
   commands:
   - go mod init
-  - go get tidy
+  - go get -t
   - GOOS=linux GOARCH=amd64 go build -o main
   when:
     branch:
