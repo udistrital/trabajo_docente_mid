@@ -6,9 +6,9 @@ import (
 
 	"github.com/astaxie/beego"
 	"github.com/astaxie/beego/logs"
-	"github.com/udistrital/sga_trabajo_docente_mid/helpers"
-	"github.com/udistrital/sga_trabajo_docente_mid/models"
-	"github.com/udistrital/sga_trabajo_docente_mid/utils"
+	"github.com/udistrital/trabajo_docente_mid/helpers"
+	"github.com/udistrital/trabajo_docente_mid/models"
+	"github.com/udistrital/trabajo_docente_mid/utils"
 	request "github.com/udistrital/utils_oas/request"
 	"github.com/udistrital/utils_oas/requestresponse"
 	requestmanager "github.com/udistrital/utils_oas/requestresponse"

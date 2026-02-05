@@ -5,7 +5,7 @@ package routers
 
 import (
 	"github.com/astaxie/beego"
-	"github.com/udistrital/sga_trabajo_docente_mid/controllers"
+	"github.com/udistrital/trabajo_docente_mid/controllers"
 	"github.com/udistrital/utils_oas/errorhandler"
 )
 

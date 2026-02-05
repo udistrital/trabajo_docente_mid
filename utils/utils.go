@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/udistrital/sga_trabajo_docente_mid/models"
+	"github.com/udistrital/trabajo_docente_mid/models"
 )
 
 // Checkeo de Id si cumple

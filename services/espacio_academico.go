@@ -5,7 +5,7 @@ import (
 
 	"github.com/astaxie/beego"
 	"github.com/astaxie/beego/logs"
-	"github.com/udistrital/sga_trabajo_docente_mid/utils"
+	"github.com/udistrital/trabajo_docente_mid/utils"
 	request "github.com/udistrital/utils_oas/request"
 	requestmanager "github.com/udistrital/utils_oas/requestresponse"
 )
