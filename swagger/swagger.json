@@ -517,6 +517,32 @@
                 }
             }
         },
+        "/preasignacion/{preasignacion_id}": {
+            "delete": {
+                "tags": [
+                    "preasignacion"
+                ],
+                "description": "delete preasignacion teniendo en cuenta restricciones",
+                "operationId": "PreasignacionController.DeletePreasignacion",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "preasignacion_id",
+                        "description": "preasignacion id",
+                        "required": true,
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "{string} delete success!"
+                    },
+                    "404": {
+                        "description": "not found resource"
+                    }
+                }
+            }
+        },
         "/reporte/plan-trabajo-docente": {
             "get": {
                 "tags": [
