@@ -3,7 +3,6 @@ package services
 import (
 	"encoding/json"
 	"fmt"
-	"time"
 
 	"github.com/astaxie/beego"
 	"github.com/astaxie/beego/logs"
@@ -13,147 +12,157 @@ import (
 
 // EspacioFisicoDependencia ...
 func ArbolEspaciosFisicosDependencia(dependencia int64) requestmanager.APIResponse {
-	inBog, _ := time.LoadLocation("America/Bogota")
-	horaes := time.Now().In(inBog).Format(time.RFC3339)
+	_ = dependencia
 
-	resp, err := requestmanager.Get("http://"+beego.AppConfig.String("ProyectoAcademicoService")+
-		fmt.Sprintf("proyecto_academico_institucion/%d", dependencia), requestmanager.ParseResonseNoFormat)
+	baseOikosURL := "http://" + beego.AppConfig.String("OikosService")
+
+	sedes, err := requestmanager.Get(baseOikosURL+
+		"espacio_fisico?query=Activo:true,TipoEspacioFisicoId__Id:38&limit=0&sortby=Nombre&order=asc",
+		requestmanager.ParseResonseNoFormat)
 	if err != nil {
 		logs.Error(err)
-		return requestmanager.APIResponseDTO(false, 404, nil, "ProyectoAcademicoService (proyecto_academico_institucion): "+err.Error())
-		/* badAns, code := requestmanager.MidResponseFormat("ProyectoAcademicoService (proyecto_academico_institucion)", "GET", false, map[string]interface{}{
-			"response": resp,
-			"error":    err.Error(),
-		})
-		c.Ctx.Output.SetStatus(code)
-		c.Data["json"] = badAns
-		c.ServeJSON()
-		return */
+		return requestmanager.APIResponseDTO(false, 404, nil, "OikosService (sedes: TipoEspacioFisicoId 38): "+err.Error())
 	}
+	sedes = filterDistinctByField(sedes, "Nombre")
 
-	dependencia = int64(resp.(map[string]interface{})["DependenciaId"].(float64))
-	if dependencia <= 0 {
-		err = fmt.Errorf("no valid Id: %d > 0 = false", dependencia)
-		logs.Error(err)
-		return requestmanager.APIResponseDTO(false, 404, nil, "GetEspaciosFisicosDependencia (param: dependencia): "+err.Error())
-		/* errorAns, statuscode := requestmanager.MidResponseFormat("GetEspaciosFisicosDependencia (param: dependencia)", "GET", false, err.Error())
-		c.Ctx.Output.SetStatus(statuscode)
-		c.Data["json"] = errorAns
-		c.ServeJSON()
-		return */
-	}
-
-	Salones := map[string][]map[string]interface{}{}
-	Edificios := map[string][]map[string]interface{}{}
-	Sedes := []map[string]interface{}{}
-
-	resp, err = requestmanager.Get("http://"+beego.AppConfig.String("OikosService")+
-		fmt.Sprintf("asignacion_espacio_fisico_dependencia?query=Activo:true,DependenciaId:%d,FechaInicio__lte:%v,FechaFin__gte:%v&fields=EspacioFisicoId&limit=0",
-			dependencia, horaes, horaes), requestmanager.ParseResonseNoFormat)
+	edificios, err := requestmanager.Get(baseOikosURL+
+		"espacio_fisico?query=Activo:true,TipoEspacioFisicoId__Id:39&limit=0&sortby=Nombre&order=asc",
+		requestmanager.ParseResonseNoFormat)
 	if err != nil {
-		resp, err = requestmanager.Get("http://"+beego.AppConfig.String("OikosService")+"espacio_fisico?query=Nombre:POR%20ASIGNAR,TipoEspacioFisicoId__Id:2", requestmanager.ParseResonseNoFormat)
-		if err != nil {
-			logs.Error(err)
-			return requestmanager.APIResponseDTO(false, 404, nil, "OikosService (espacio_fisico): "+err.Error())
-			/* badAns, code := requestmanager.MidResponseFormat("OikosService (espacio_fisico)", "GET", false, map[string]interface{}{
-				"response": resp,
-				"error":    err.Error(),
-			})
-			c.Ctx.Output.SetStatus(code)
-			c.Data["json"] = badAns
-			c.ServeJSON()
-			return */
-		}
-		Idstr := fmt.Sprintf("%v", resp.([]interface{})[0].(map[string]interface{})["Id"])
-		Opcion := map[string]interface{}{
-			"Id":     resp.([]interface{})[0].(map[string]interface{})["Id"],
-			"Nombre": resp.([]interface{})[0].(map[string]interface{})["Nombre"],
-		}
-		Salones[Idstr] = append(Salones[Idstr], Opcion)
-		Edificios[Idstr] = append(Edificios[Idstr], Opcion)
-		Sedes = append(Sedes, Opcion)
-
-		return requestmanager.APIResponseDTO(true, 200, map[string]interface{}{
-			"Salones":    Salones,
-			"Edificios":  Edificios,
-			"Sedes":      Sedes,
-			"PorAsignar": true,
-		})
-		/* respuesta, statuscode := requestmanager.MidResponseFormat("GetEspaciosFisicosDependencia", "GET", true, map[string]interface{}{
-			"Salones":    Salones,
-			"Edificios":  Edificios,
-			"Sedes":      Sedes,
-			"PorAsignar": true,
-		})
-		c.Ctx.Output.SetStatus(statuscode)
-		c.Data["json"] = respuesta
-		c.ServeJSON()
-		return */
+		logs.Error(err)
+		return requestmanager.APIResponseDTO(false, 404, nil, "OikosService (edificios: TipoEspacioFisicoId 39): "+err.Error())
 	}
+	edificios = filterDistinctByField(edificios, "Nombre")
 
-	for _, EspacioFisico := range resp.([]interface{}) {
-		resp, err := requestmanager.Get("http://"+beego.AppConfig.String("OikosService")+
-			fmt.Sprintf("espacio_fisico_padre?query=HijoId:%v", EspacioFisico.(map[string]interface{})["EspacioFisicoId"].(map[string]interface{})["Id"]), requestmanager.ParseResonseNoFormat)
-		if err == nil {
-			tipoEspacio := resp.([]interface{})[0].(map[string]interface{})["PadreId"].(map[string]interface{})["TipoEspacioFisicoId"].(map[string]interface{})["Id"].(float64)
-			PadreSalon := fmt.Sprintf("%v", resp.([]interface{})[0].(map[string]interface{})["PadreId"].(map[string]interface{})["Id"])
-			for tipoEspacio != 39 {
-				resp, err := requestmanager.Get("http://"+beego.AppConfig.String("OikosService")+
-					fmt.Sprintf("espacio_fisico_padre?query=HijoId:%v", PadreSalon), requestmanager.ParseResonseNoFormat)
-				if err == nil {
-					PadreSalon = fmt.Sprintf("%v", resp.([]interface{})[0].(map[string]interface{})["PadreId"].(map[string]interface{})["Id"])
-					tipoEspacio = resp.([]interface{})[0].(map[string]interface{})["PadreId"].(map[string]interface{})["TipoEspacioFisicoId"].(map[string]interface{})["Id"].(float64)
-				}
-			}
-
-			if _, ok := Salones[PadreSalon]; !ok {
-				Salones[PadreSalon] = []map[string]interface{}{}
-			}
-			Salones[PadreSalon] = append(Salones[PadreSalon], map[string]interface{}{
-				"Id":                resp.([]interface{})[0].(map[string]interface{})["HijoId"].(map[string]interface{})["Id"],
-				"Nombre":            resp.([]interface{})[0].(map[string]interface{})["HijoId"].(map[string]interface{})["Nombre"],
-				"Descripcion":       resp.([]interface{})[0].(map[string]interface{})["HijoId"].(map[string]interface{})["Descripcion"],
-				"CodigoAbreviacion": resp.([]interface{})[0].(map[string]interface{})["HijoId"].(map[string]interface{})["CodigoAbreviacion"],
-			})
-
-		}
+	salones, err := requestmanager.Get(baseOikosURL+
+		"espacio_fisico?query=Activo:true,TipoEspacioFisicoId__Id:2&limit=0&sortby=Nombre&order=asc",
+		requestmanager.ParseResonseNoFormat)
+	if err != nil {
+		logs.Error(err)
+		return requestmanager.APIResponseDTO(false, 404, nil, "OikosService (salones: TipoEspacioFisicoId 2): "+err.Error())
 	}
-
-	for PadreSalon := range Salones {
-		resp, err := requestmanager.Get("http://"+beego.AppConfig.String("OikosService")+
-			fmt.Sprintf("espacio_fisico_padre?query=HijoId:%v", PadreSalon), requestmanager.ParseResonseNoFormat)
-		if err == nil {
-			PadreEdificio := fmt.Sprintf("%v", resp.([]interface{})[0].(map[string]interface{})["PadreId"].(map[string]interface{})["Id"])
-			if _, ok := Edificios[PadreEdificio]; !ok {
-				Edificios[PadreEdificio] = []map[string]interface{}{}
-			}
-			Edificios[PadreEdificio] = append(Edificios[PadreEdificio], map[string]interface{}{
-				"Id":                resp.([]interface{})[0].(map[string]interface{})["HijoId"].(map[string]interface{})["Id"],
-				"Nombre":            resp.([]interface{})[0].(map[string]interface{})["HijoId"].(map[string]interface{})["Nombre"],
-				"Descripcion":       resp.([]interface{})[0].(map[string]interface{})["HijoId"].(map[string]interface{})["Descripcion"],
-				"CodigoAbreviacion": resp.([]interface{})[0].(map[string]interface{})["HijoId"].(map[string]interface{})["CodigoAbreviacion"],
-			})
-		}
-	}
-
-	for PadreEficio := range Edificios {
-		resp, err := requestmanager.Get("http://"+beego.AppConfig.String("OikosService")+
-			fmt.Sprintf("espacio_fisico_padre?query=HijoId:%v", PadreEficio), requestmanager.ParseResonseNoFormat)
-		if err == nil {
-			Sedes = append(Sedes, map[string]interface{}{
-				"Id":                resp.([]interface{})[0].(map[string]interface{})["HijoId"].(map[string]interface{})["Id"],
-				"Nombre":            resp.([]interface{})[0].(map[string]interface{})["HijoId"].(map[string]interface{})["Nombre"],
-				"Descripcion":       resp.([]interface{})[0].(map[string]interface{})["HijoId"].(map[string]interface{})["Descripcion"],
-				"CodigoAbreviacion": resp.([]interface{})[0].(map[string]interface{})["HijoId"].(map[string]interface{})["CodigoAbreviacion"],
-			})
-		}
-	}
+	salones = filterDistinctByField(salones, "Nombre")
 
 	return requestmanager.APIResponseDTO(true, 200, map[string]interface{}{
-		"Salones":   Salones,
-		"Edificios": Edificios,
-		"Sedes":     Sedes,
+		"Salones":    salones,
+		"Edificios":  edificios,
+		"Sedes":      sedes,
+		"PorAsignar": false,
 	})
+
+	/*
+		// Lógica previa basada en jerarquías de asignación. Se conserva comentada mientras se corrigen los datos en Oikos.
+		inBog, _ := time.LoadLocation("America/Bogota")
+		horaes := time.Now().In(inBog).Format(time.RFC3339)
+
+		resp, err := requestmanager.Get("http://"+beego.AppConfig.String("ProyectoAcademicoService")+
+			fmt.Sprintf("proyecto_academico_institucion/%d", dependencia), requestmanager.ParseResonseNoFormat)
+		if err != nil {
+			logs.Error(err)
+			return requestmanager.APIResponseDTO(false, 404, nil, "ProyectoAcademicoService (proyecto_academico_institucion): "+err.Error())
+		}
+
+		dependencia = int64(resp.(map[string]interface{})["DependenciaId"].(float64))
+		if dependencia <= 0 {
+			err = fmt.Errorf("no valid Id: %d > 0 = false", dependencia)
+			logs.Error(err)
+			return requestmanager.APIResponseDTO(false, 404, nil, "GetEspaciosFisicosDependencia (param: dependencia): "+err.Error())
+		}
+
+		Salones := map[string][]map[string]interface{}{}
+		Edificios := map[string][]map[string]interface{}{}
+		Sedes := []map[string]interface{}{}
+
+		resp, err = requestmanager.Get("http://"+beego.AppConfig.String("OikosService")+
+			fmt.Sprintf("asignacion_espacio_fisico_dependencia?query=Activo:true,DependenciaId:%d,FechaInicio__lte:%v,FechaFin__gte:%v&fields=EspacioFisicoId&limit=0",
+				dependencia, horaes, horaes), requestmanager.ParseResonseNoFormat)
+		if err != nil {
+			resp, err = requestmanager.Get("http://"+beego.AppConfig.String("OikosService")+"espacio_fisico?query=Nombre:POR%20ASIGNAR,TipoEspacioFisicoId__Id:2", requestmanager.ParseResonseNoFormat)
+			if err != nil {
+				logs.Error(err)
+				return requestmanager.APIResponseDTO(false, 404, nil, "OikosService (espacio_fisico): "+err.Error())
+			}
+			Idstr := fmt.Sprintf("%v", resp.([]interface{})[0].(map[string]interface{})["Id"])
+			Opcion := map[string]interface{}{
+				"Id":     resp.([]interface{})[0].(map[string]interface{})["Id"],
+				"Nombre": resp.([]interface{})[0].(map[string]interface{})["Nombre"],
+			}
+			Salones[Idstr] = append(Salones[Idstr], Opcion)
+			Edificios[Idstr] = append(Edificios[Idstr], Opcion)
+			Sedes = append(Sedes, Opcion)
+
+			return requestmanager.APIResponseDTO(true, 200, map[string]interface{}{
+				"Salones":    Salones,
+				"Edificios":  Edificios,
+				"Sedes":      Sedes,
+				"PorAsignar": true,
+			})
+		}
+
+		for _, EspacioFisico := range resp.([]interface{}) {
+			resp, err := requestmanager.Get("http://"+beego.AppConfig.String("OikosService")+
+				fmt.Sprintf("espacio_fisico_padre?query=HijoId:%v", EspacioFisico.(map[string]interface{})["EspacioFisicoId"].(map[string]interface{})["Id"]), requestmanager.ParseResonseNoFormat)
+			if err == nil {
+				tipoEspacio := resp.([]interface{})[0].(map[string]interface{})["PadreId"].(map[string]interface{})["TipoEspacioFisicoId"].(map[string]interface{})["Id"].(float64)
+				PadreSalon := fmt.Sprintf("%v", resp.([]interface{})[0].(map[string]interface{})["PadreId"].(map[string]interface{})["Id"])
+				for tipoEspacio != 39 {
+					resp, err := requestmanager.Get("http://"+beego.AppConfig.String("OikosService")+
+						fmt.Sprintf("espacio_fisico_padre?query=HijoId:%v", PadreSalon), requestmanager.ParseResonseNoFormat)
+					if err == nil {
+						PadreSalon = fmt.Sprintf("%v", resp.([]interface{})[0].(map[string]interface{})["PadreId"].(map[string]interface{})["Id"])
+						tipoEspacio = resp.([]interface{})[0].(map[string]interface{})["PadreId"].(map[string]interface{})["TipoEspacioFisicoId"].(map[string]interface{})["Id"].(float64)
+					}
+				}
+
+				if _, ok := Salones[PadreSalon]; !ok {
+					Salones[PadreSalon] = []map[string]interface{}{}
+				}
+				Salones[PadreSalon] = append(Salones[PadreSalon], map[string]interface{}{
+					"Id":                resp.([]interface{})[0].(map[string]interface{})["HijoId"].(map[string]interface{})["Id"],
+					"Nombre":            resp.([]interface{})[0].(map[string]interface{})["HijoId"].(map[string]interface{})["Nombre"],
+					"Descripcion":       resp.([]interface{})[0].(map[string]interface{})["HijoId"].(map[string]interface{})["Descripcion"],
+					"CodigoAbreviacion": resp.([]interface{})[0].(map[string]interface{})["HijoId"].(map[string]interface{})["CodigoAbreviacion"],
+				})
+
+			}
+		}
+
+		for PadreSalon := range Salones {
+			resp, err := requestmanager.Get("http://"+beego.AppConfig.String("OikosService")+
+				fmt.Sprintf("espacio_fisico_padre?query=HijoId:%v", PadreSalon), requestmanager.ParseResonseNoFormat)
+			if err == nil {
+				PadreEdificio := fmt.Sprintf("%v", resp.([]interface{})[0].(map[string]interface{})["PadreId"].(map[string]interface{})["Id"])
+				if _, ok := Edificios[PadreEdificio]; !ok {
+					Edificios[PadreEdificio] = []map[string]interface{}{}
+				}
+				Edificios[PadreEdificio] = append(Edificios[PadreEdificio], map[string]interface{}{
+					"Id":                resp.([]interface{})[0].(map[string]interface{})["HijoId"].(map[string]interface{})["Id"],
+					"Nombre":            resp.([]interface{})[0].(map[string]interface{})["HijoId"].(map[string]interface{})["Nombre"],
+					"Descripcion":       resp.([]interface{})[0].(map[string]interface{})["HijoId"].(map[string]interface{})["Descripcion"],
+					"CodigoAbreviacion": resp.([]interface{})[0].(map[string]interface{})["HijoId"].(map[string]interface{})["CodigoAbreviacion"],
+				})
+			}
+		}
+
+		for PadreEficio := range Edificios {
+			resp, err := requestmanager.Get("http://"+beego.AppConfig.String("OikosService")+
+				fmt.Sprintf("espacio_fisico_padre?query=HijoId:%v", PadreEficio), requestmanager.ParseResonseNoFormat)
+			if err == nil {
+				Sedes = append(Sedes, map[string]interface{}{
+					"Id":                resp.([]interface{})[0].(map[string]interface{})["HijoId"].(map[string]interface{})["Id"],
+					"Nombre":            resp.([]interface{})[0].(map[string]interface{})["HijoId"].(map[string]interface{})["Nombre"],
+					"Descripcion":       resp.([]interface{})[0].(map[string]interface{})["HijoId"].(map[string]interface{})["Descripcion"],
+					"CodigoAbreviacion": resp.([]interface{})[0].(map[string]interface{})["HijoId"].(map[string]interface{})["CodigoAbreviacion"],
+				})
+			}
+		}
+
+		return requestmanager.APIResponseDTO(true, 200, map[string]interface{}{
+			"Salones":   Salones,
+			"Edificios": Edificios,
+			"Sedes":     Sedes,
+		})
+	*/
 
 }
 
@@ -201,4 +210,33 @@ func OcupacionEspacioFisico(salon, vigencia, plan string) requestmanager.APIResp
 	} else {
 		return requestmanager.APIResponseDTO(true, 200, cargas)
 	}
+}
+
+// filtro para que no se repitan los espacios físicos con el mismo nombre
+func filterDistinctByField(data interface{}, field string) interface{} {
+	list, ok := data.([]interface{})
+	if !ok {
+		return data
+	}
+
+	seen := make(map[string]struct{})
+	unique := make([]interface{}, 0, len(list))
+
+	for _, item := range list {
+		row, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		key := fmt.Sprintf("%v", row[field])
+		if key == "" {
+			continue
+		}
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		unique = append(unique, item)
+	}
+
+	return unique
 }
