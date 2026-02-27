@@ -459,7 +459,7 @@ func obtenerInformacionRequeridaRepCumplimiento(vigencia int64, proyectoFilter s
 		agrupacionEspacios := map[string]float64{}
 		agrupacionActividades := map[string]float64{}
 		for _, carga := range carga_plan {
-			if carga.Espacio_academico_id != "" {
+			if carga.Espacio_academico_id != "" && carga.Espacio_academico_id != "NA" {
 				agrupacionEspacios[carga.Espacio_academico_id] = agrupacionEspacios[carga.Espacio_academico_id] + carga.Duracion
 			} else if carga.Actividad_id != "" {
 				agrupacionActividades[carga.Actividad_id] = agrupacionActividades[carga.Actividad_id] + carga.Duracion
