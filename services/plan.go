@@ -700,7 +700,7 @@ func ListaPlanPreaprobado(vigencia, proyecto int64) requestmanager.APIResponse {
 	}
 
 	prepareAns := []map[string]interface{}{}
-	estadoNoAprobadoId := "646fcf8a4c0bc253c1c720d6"
+	estadoAprobadoIdActual := "646fcf784c0bc253c1c720d4"
 
 	for _, planProyecto := range planes_proyecto {
 		resp, err := requestmanager.Get("http://"+beego.AppConfig.String("TercerosService")+
@@ -738,7 +738,7 @@ func ListaPlanPreaprobado(vigencia, proyecto int64) requestmanager.APIResponse {
 		infoVinculacion := models.Parametro{}
 		utils.ParseData(resp, &infoVinculacion)
 
-		desactivarSoporte := strings.TrimSpace(planProyecto.Soporte_documental) == "" || planProyecto.Estado_plan_id == estadoNoAprobadoId
+		desactivarSoporte := strings.TrimSpace(planProyecto.Soporte_documental) == "" || planProyecto.Estado_plan_id != estadoAprobadoIdActual
 
 		prepareAns = append(prepareAns, map[string]interface{}{
 			"id":                 planProyecto.Id,
