@@ -174,7 +174,7 @@ func PlanTrabajoDocente(docente, vigencia, vinculacion int64) requestmanager.API
 	var resPlan map[string]interface{}
 	if errPlan := request.GetJson("https://"+beego.AppConfig.String("PlanTrabajoDocenteService")+
 		fmt.Sprintf("plan_docente?query=activo:true,docente_id:%d,periodo_id:%d&fields=tipo_vinculacion_id,soporte_documental,respuesta,resumen,docente_id,periodo_id,estado_plan_id", docente, vigencia), &resPlan); errPlan == nil {
-			if fmt.Sprintf("%v", resPlan["Data"]) != "[]" {
+		if fmt.Sprintf("%v", resPlan["Data"]) != "[]" {
 			response := consultarDetallePlan(resPlan["Data"].([]interface{}), vinculacion)
 			return requestmanager.APIResponseDTO(true, 200, response)
 			/* c.Ctx.Output.SetStatus(200)
@@ -700,6 +700,7 @@ func ListaPlanPreaprobado(vigencia, proyecto int64) requestmanager.APIResponse {
 	}
 
 	prepareAns := []map[string]interface{}{}
+	estadoNoAprobadoId := "646fcf8a4c0bc253c1c720d6"
 
 	for _, planProyecto := range planes_proyecto {
 		resp, err := requestmanager.Get("http://"+beego.AppConfig.String("TercerosService")+
@@ -737,13 +738,15 @@ func ListaPlanPreaprobado(vigencia, proyecto int64) requestmanager.APIResponse {
 		infoVinculacion := models.Parametro{}
 		utils.ParseData(resp, &infoVinculacion)
 
+		desactivarSoporte := strings.TrimSpace(planProyecto.Soporte_documental) == "" || planProyecto.Estado_plan_id == estadoNoAprobadoId
+
 		prepareAns = append(prepareAns, map[string]interface{}{
 			"id":                 planProyecto.Id,
 			"nombre":             utils.FormatNameTercero(datos_identificacion.TerceroId),
 			"identificacion":     datos_identificacion.Numero,
 			"tipo_vinculacion":   infoVinculacion.Nombre,
 			"periodo_academico":  vigencia,
-			"soporte_documental": map[string]interface{}{"value": planProyecto.Soporte_documental, "type": "ver", "disabled": false}, //(planProyecto.Soporte_documental <= 0)},
+			"soporte_documental": map[string]interface{}{"value": planProyecto.Soporte_documental, "type": "ver", "disabled": desactivarSoporte},
 			"gestion":            map[string]interface{}{"value": nil, "type": "editar", "disabled": false},
 			"estado":             planProyecto.Estado_plan_id,
 			"tercero_id":         datos_identificacion.TerceroId.Id,

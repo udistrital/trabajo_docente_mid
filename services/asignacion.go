@@ -137,7 +137,7 @@ func consultarDetalleAsignacion(asignaciones []interface{}, forTeacher bool) []m
 				"periodo_academico":   memPeriodo[asignacion.(map[string]interface{})["periodo_id"].(string)],
 				"periodo_id":          asignacion.(map[string]interface{})["periodo_id"].(string),
 				"estado":              memEstados[asignacion.(map[string]interface{})["plan_docente_id"].(string)],
-				"soporte_documental":  map[string]interface{}{"value": idDocumental, "type": "ver", "disabled": idDocumental == nil},
+				"soporte_documental":  map[string]interface{}{"value": idDocumental, "type": "ver", "disabled": idDocumental == nil || estadoPlan == "N_APR"},
 				"enviar":              map[string]interface{}{"value": nil, "type": "enviar", "disabled": desactivarEnviar},
 				"gestion":             map[string]interface{}{"value": nil, "type": tipoGestion, "disabled": false}})
 		}
