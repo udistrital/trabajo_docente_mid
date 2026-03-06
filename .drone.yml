@@ -48,7 +48,7 @@ steps:
     - push
 
 - name: go_build
-  image: golang:1.24
+  image: golang:1.25
   commands:
   - go mod init
   - go mod tidy
@@ -136,7 +136,7 @@ steps:
     - push
 
 - name: update_aws_ecs
-  image: golang:1.18
+  image: golang:1.25
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: AWS_ACCESS_KEY_ID
