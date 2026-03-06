@@ -1,6 +1,7 @@
 package services
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -72,6 +73,7 @@ func consultarDetalleAsignacion(asignaciones []interface{}, forTeacher bool) []m
 
 		var resPlan map[string]interface{}
 		var idDocumental interface{}
+		var tieneObservaciones bool = false
 		if memEstados[asignacion.(map[string]interface{})["plan_docente_id"].(string)] == nil {
 
 			estadoPlan := "Sin definir"
@@ -89,6 +91,10 @@ func consultarDetalleAsignacion(asignaciones []interface{}, forTeacher bool) []m
 				}
 				if resPlan["Data"].(map[string]interface{})["soporte_documental"] != nil {
 					idDocumental = resPlan["Data"].(map[string]interface{})["soporte_documental"]
+				}
+				// Verificar si el plan tiene observaciones
+				if resumen, ok := resPlan["Data"].(map[string]interface{})["resumen"].(string); ok {
+					tieneObservaciones = verificarSiTieneObservaciones(resumen)
 				}
 			}
 
@@ -137,6 +143,8 @@ func consultarDetalleAsignacion(asignaciones []interface{}, forTeacher bool) []m
 				"periodo_academico":   memPeriodo[asignacion.(map[string]interface{})["periodo_id"].(string)],
 				"periodo_id":          asignacion.(map[string]interface{})["periodo_id"].(string),
 				"estado":              memEstados[asignacion.(map[string]interface{})["plan_docente_id"].(string)],
+				"codigo_estado":       estadoPlan,
+				"tiene_observaciones": tieneObservaciones,
 				"soporte_documental":  map[string]interface{}{"value": idDocumental, "type": "ver", "disabled": idDocumental == nil || estadoPlan != "APR"},
 				"enviar":              map[string]interface{}{"value": nil, "type": "enviar", "disabled": desactivarEnviar},
 				"gestion":             map[string]interface{}{"value": nil, "type": tipoGestion, "disabled": false}})
@@ -167,4 +175,28 @@ func ListaAsignacionDocente(docente, vigencia string) requestmanager.APIResponse
 		/* c.Ctx.Output.SetStatus(404)
 		c.Data["json"] = map[string]interface{}{"Success": false, "Status": "404", "Message": "No se encontraron registros de preasignaciones"} */
 	}
+}
+
+// verificarSiTieneObservaciones verifica si el campo de observaciones tiene contenido
+func verificarSiTieneObservaciones(resumenJSON string) bool {
+	if resumenJSON == "" {
+		return false
+	}
+
+	var resumen map[string]interface{}
+	if err := json.Unmarshal([]byte(resumenJSON), &resumen); err != nil {
+		return false
+	}
+
+	observacion, exists := resumen["observacion"]
+	if !exists {
+		return false
+	}
+
+	// Verificar si observacion no está vacía
+	if obsTrimmed, ok := observacion.(string); ok {
+		return strings.TrimSpace(obsTrimmed) != ""
+	}
+
+	return false
 }
