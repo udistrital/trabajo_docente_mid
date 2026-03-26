@@ -61,6 +61,24 @@ func init() {
             Filters: nil,
             Params: nil})
 
+    beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:EspacioAcademicoController"] = append(beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:EspacioAcademicoController"],
+        beego.ControllerComments{
+            Method: "GruposEspacioPeriodo",
+            Router: "/grupos-periodo",
+            AllowHTTPMethods: []string{"get"},
+            MethodParams: param.Make(),
+            Filters: nil,
+            Params: nil})
+
+    beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:EspacioAcademicoController"] = append(beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:EspacioAcademicoController"],
+        beego.ControllerComments{
+            Method: "EspaciosAcademicosProyectoPeriodo",
+            Router: "/proyecto-periodo",
+            AllowHTTPMethods: []string{"get"},
+            MethodParams: param.Make(),
+            Filters: nil,
+            Params: nil})
+
     beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:EspacioFisicoController"] = append(beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:EspacioFisicoController"],
         beego.ControllerComments{
             Method: "EspacioFisicoDependencia",
