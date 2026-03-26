@@ -17,6 +17,8 @@ type EspacioAcademicoController struct {
 func (c *EspacioAcademicoController) URLMapping() {
 	c.Mapping("GrupoEspacioAcademico", c.GrupoEspacioAcademico)
 	c.Mapping("GrupoEspacioAcademicoPadre", c.GrupoEspacioAcademicoPadre)
+	c.Mapping("EspaciosAcademicosProyectoPeriodo", c.EspaciosAcademicosProyectoPeriodo)
+	c.Mapping("GruposEspacioPeriodo", c.GruposEspacioPeriodo)
 }
 
 // GrupoEspacioAcademico ...
@@ -64,6 +66,66 @@ func (c *EspacioAcademicoController) GrupoEspacioAcademicoPadre() {
 		c.Ctx.Output.SetStatus(400)
 	} else {
 		resultado := services.ListaGruposEspaciosAcademicosPadre(padre)
+		c.Data["json"] = resultado
+		c.Ctx.Output.SetStatus(resultado.Status)
+	}
+
+	c.ServeJSON()
+}
+
+// EspaciosAcademicosProyectoPeriodo ...
+// @Title EspaciosAcademicosProyectoPeriodo
+// @Description Lista espacios academicos por anio, periodo y proyecto curricular
+// @Param	anio		query 	string	true		"Anio de consulta"
+// @Param	periodo		query 	string	true		"Periodo academico"
+// @Param	proyecto	query 	string	false		"Proyecto curricular"
+// @Param	documento_coordinador	query 	string	false		"Documento del coordinador"
+// @Success 200 {}
+// @Failure 404 the request contains an incorrect parameter or no record exist
+// @router /proyecto-periodo [get]
+func (c *EspacioAcademicoController) EspaciosAcademicosProyectoPeriodo() {
+	defer errorhandler.HandlePanic(&c.Controller)
+
+	anio := c.GetString("anio")
+	periodo := c.GetString("periodo")
+	proyecto := c.GetString("proyecto")
+	documentoCoordinador := c.GetString("documento_coordinador")
+
+	if anio == "" || periodo == "" || (proyecto == "" && documentoCoordinador == "") {
+		logs.Error(anio, periodo, proyecto, documentoCoordinador)
+		c.Data["json"] = requestmanager.APIResponseDTO(false, 400, nil, "Error: Parametro(s) con valores no validos")
+		c.Ctx.Output.SetStatus(400)
+	} else {
+		resultado := services.ListaEspaciosAcademicosProyectoPeriodo(anio, periodo, proyecto, documentoCoordinador)
+		c.Data["json"] = resultado
+		c.Ctx.Output.SetStatus(resultado.Status)
+	}
+
+	c.ServeJSON()
+}
+
+// GruposEspacioPeriodo ...
+// @Title GruposEspacioPeriodo
+// @Description Lista grupos por anio, periodo y espacio academico
+// @Param	anio		query 	string	true		"Anio de consulta"
+// @Param	periodo		query 	string	true		"Periodo academico"
+// @Param	espacio		query 	string	true		"Espacio academico"
+// @Success 200 {}
+// @Failure 404 the request contains an incorrect parameter or no record exist
+// @router /grupos-periodo [get]
+func (c *EspacioAcademicoController) GruposEspacioPeriodo() {
+	defer errorhandler.HandlePanic(&c.Controller)
+
+	anio := c.GetString("anio")
+	periodo := c.GetString("periodo")
+	espacio := c.GetString("espacio")
+
+	if anio == "" || periodo == "" || espacio == "" {
+		logs.Error(anio, periodo, espacio)
+		c.Data["json"] = requestmanager.APIResponseDTO(false, 400, nil, "Error: Parametro(s) con valores no validos")
+		c.Ctx.Output.SetStatus(400)
+	} else {
+		resultado := services.ListaGruposEspacioPeriodo(anio, periodo, espacio)
 		c.Data["json"] = resultado
 		c.Ctx.Output.SetStatus(resultado.Status)
 	}
