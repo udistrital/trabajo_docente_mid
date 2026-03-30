@@ -71,7 +71,7 @@ func obtenerInformacionRequeridaRepCargaLectiva(docente, vinculacion, periodo in
 	datoPeriodo := models.Periodo{}
 	utils.ParseData(resp, &datoPeriodo)
 
-	resp, err = requestmanager.Get("https://"+beego.AppConfig.String("PlanTrabajoDocenteService")+
+	resp, err = requestmanager.Get(beego.AppConfig.String("PlanTrabajoDocenteService")+
 		fmt.Sprintf("plan_docente?query=activo:true,docente_id:%d,tipo_vinculacion_id:%d,periodo_id:%d&limit=1", docente, vinculacion, periodo), requestmanager.ParseResponseFormato1)
 	if err != nil {
 		logs.Error(err)
@@ -83,7 +83,7 @@ func obtenerInformacionRequeridaRepCargaLectiva(docente, vinculacion, periodo in
 	datoResumen := resumenJson{}
 	json.Unmarshal([]byte(datoPlanDocente.Resumen), &datoResumen)
 
-	resp, err = requestmanager.Get("https://"+beego.AppConfig.String("PlanTrabajoDocenteService")+
+	resp, err = requestmanager.Get(beego.AppConfig.String("PlanTrabajoDocenteService")+
 		fmt.Sprintf("carga_plan?query=activo:true,plan_docente_id:%s,&limit=0", datoPlanDocente.Id), requestmanager.ParseResponseFormato1)
 	if err != nil {
 		logs.Error(err)
@@ -225,7 +225,7 @@ func generarReporteCargaLectiva(infoRequerida infoRequeridaRepCL, cargaTipo stri
 			nombreCarga = resp.(map[string]interface{})["nombre"].(string) + " - " + resp.(map[string]interface{})["grupo"].(string)
 			template.SetCellStyle(sheet, ini, fin, CargaStyle)
 		} else if horarioIs.TipoCarga == Actividades {
-			resp, err := requestmanager.Get("https://"+beego.AppConfig.String("PlanTrabajoDocenteService")+
+			resp, err := requestmanager.Get(beego.AppConfig.String("PlanTrabajoDocenteService")+
 				fmt.Sprintf("actividad/%s", carga.Actividad_id), requestmanager.ParseResponseFormato1)
 			if err != nil {
 				logs.Error(err)
@@ -421,7 +421,7 @@ func obtenerInformacionRequeridaRepCumplimiento(vigencia int64, proyectoFilter s
 	ListaIdPlanes := []string{}
 
 	plan_aprobado := "646fcf784c0bc253c1c720d4"
-	resp, err := requestmanager.Get("https://"+beego.AppConfig.String("PlanTrabajoDocenteService")+
+	resp, err := requestmanager.Get(beego.AppConfig.String("PlanTrabajoDocenteService")+
 		fmt.Sprintf("plan_docente?query=activo:true,estado_plan_id:%s,periodo_id:%d&limit=0", plan_aprobado, vigencia), requestmanager.ParseResponseFormato1)
 	if err != nil {
 		logs.Error(err)
@@ -439,7 +439,7 @@ func obtenerInformacionRequeridaRepCumplimiento(vigencia int64, proyectoFilter s
 	utils.ParseData(resp, &lista_planes)
 	for _, plan_docente := range lista_planes {
 
-		resp, err = requestmanager.Get("https://"+beego.AppConfig.String("PlanTrabajoDocenteService")+
+		resp, err = requestmanager.Get(beego.AppConfig.String("PlanTrabajoDocenteService")+
 			fmt.Sprintf("carga_plan?query=activo:true,plan_docente_id:%s&limit=0", plan_docente.Id), requestmanager.ParseResponseFormato1)
 		if err != nil {
 			logs.Error(err)

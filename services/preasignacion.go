@@ -18,7 +18,7 @@ import (
 func ListaPreasignacion(vigencia string) requestmanager.APIResponse {
 	var resPreasignaciones map[string]interface{}
 
-	if errPreasignacion := request.GetJson("https://"+beego.AppConfig.String("PlanTrabajoDocenteService")+"pre_asignacion?query=activo:true,periodo_id:"+vigencia, &resPreasignaciones); errPreasignacion == nil {
+	if errPreasignacion := request.GetJson(beego.AppConfig.String("PlanTrabajoDocenteService")+"pre_asignacion?query=activo:true,periodo_id:"+vigencia, &resPreasignaciones); errPreasignacion == nil {
 		if fmt.Sprintf("%v", resPreasignaciones["Data"]) != "[]" {
 			response := consultarDetallePreasignacion(resPreasignaciones["Data"].([]interface{}))
 
@@ -52,7 +52,9 @@ func consultarDetallePreasignacion(preasignaciones []interface{}) []map[string]i
 		}
 
 		if memEspacios[preasignacion.(map[string]interface{})["espacio_academico_id"].(string)] == nil {
+			fmt.Println("url ", "https://"+beego.AppConfig.String("EspaciosAcademicosService")+"espacio-academico/"+fmt.Sprintf("%v", preasignacion.(map[string]interface{})["espacio_academico_id"]))
 			if errEspacioAcademico := request.GetJson("https://"+beego.AppConfig.String("EspaciosAcademicosService")+"espacio-academico/"+fmt.Sprintf("%v", preasignacion.(map[string]interface{})["espacio_academico_id"]), &resEspacioAcademico); errEspacioAcademico == nil {
+				fmt.Println("url ", "http://"+beego.AppConfig.String("ProyectoAcademicoService")+"proyecto_academico_institucion?query=Id:"+fmt.Sprintf("%v", resEspacioAcademico["Data"].(map[string]interface{})["proyecto_academico_id"]))
 				if errProyecto := request.GetJson("http://"+beego.AppConfig.String("ProyectoAcademicoService")+"proyecto_academico_institucion?query=Id:"+fmt.Sprintf("%v", resEspacioAcademico["Data"].(map[string]interface{})["proyecto_academico_id"]), &resProyecto); errProyecto == nil {
 					memEspacios[preasignacion.(map[string]interface{})["espacio_academico_id"].(string)] = map[string]interface{}{
 						"espacio_academico":       resEspacioAcademico["Data"].(map[string]interface{})["nombre"].(string),
@@ -102,7 +104,7 @@ func consultarDetallePreasignacion(preasignaciones []interface{}) []map[string]i
 func ListaPreasignacionDocente(docente, vigencia string) requestmanager.APIResponse {
 	var resPreasignaciones map[string]interface{}
 
-	if errPreasignacion := request.GetJson("https://"+beego.AppConfig.String("PlanTrabajoDocenteService")+"pre_asignacion?query=aprobacion_proyecto:true,activo:true,periodo_id:"+vigencia+",docente_id:"+docente, &resPreasignaciones); errPreasignacion == nil {
+	if errPreasignacion := request.GetJson(beego.AppConfig.String("PlanTrabajoDocenteService")+"pre_asignacion?query=aprobacion_proyecto:true,activo:true,periodo_id:"+vigencia+",docente_id:"+docente, &resPreasignaciones); errPreasignacion == nil {
 		if fmt.Sprintf("%v", resPreasignaciones["Data"]) != "[]" {
 			response := consultarDetallePreasignacion(resPreasignaciones["Data"].([]interface{}))
 
@@ -137,7 +139,7 @@ func DefinePreasignacion(body map[string]interface{}) requestmanager.APIResponse
 	}
 
 	for _, preasignacion := range body["preasignaciones"].([]interface{}) {
-		if errAprobacion := request.SendJson("https://"+beego.AppConfig.String("PlanTrabajoDocenteService")+"pre_asignacion/"+fmt.Sprintf("%v", preasignacion.(map[string]interface{})["Id"]), "PUT", &PreasignacionPut, preasignacionPut); errAprobacion == nil {
+		if errAprobacion := request.SendJson(beego.AppConfig.String("PlanTrabajoDocenteService")+"pre_asignacion/"+fmt.Sprintf("%v", preasignacion.(map[string]interface{})["Id"]), "PUT", &PreasignacionPut, preasignacionPut); errAprobacion == nil {
 			// Actualización de espacio academico hijo con docente cuando es aprobado por el docente
 			if body["docente"] == true {
 				// Trae el espacio academico hijo para posterior actualización con el docente asigando
@@ -149,7 +151,7 @@ func DefinePreasignacion(body map[string]interface{}) requestmanager.APIResponse
 						if esp_mod, ok := EspacioAcademicoHijoPut["espacio_modular"]; ok {
 							if esp_mod.(bool) {
 
-								resp, err := requestmanager.Get("https://"+beego.AppConfig.String("PlanTrabajoDocenteService")+
+								resp, err := requestmanager.Get(beego.AppConfig.String("PlanTrabajoDocenteService")+
 									fmt.Sprintf("pre_asignacion?query=activo:true,espacio_academico_id:%s,periodo_id:%s,aprobacion_docente:true,aprobacion_proyecto:true", PreasignacionPut["Data"].(map[string]interface{})["espacio_academico_id"], PreasignacionPut["Data"].(map[string]interface{})["periodo_id"]), requestmanager.ParseResponseFormato1)
 								if err == nil {
 									preasign_list := []models.PreAsignacion{}
@@ -193,13 +195,13 @@ func DefinePreasignacion(body map[string]interface{}) requestmanager.APIResponse
 
 			if body["docente"].(bool) && PreasignacionPut["Data"].(map[string]interface{})["plan_docente_id"] == nil {
 				var planDocenteGet map[string]interface{}
-				if errGetPlan := request.GetJson("https://"+beego.AppConfig.String("PlanTrabajoDocenteService")+"plan_docente?query=docente_id:"+fmt.Sprintf("%v", PreasignacionPut["Data"].(map[string]interface{})["docente_id"])+",periodo_id:"+fmt.Sprintf("%v", PreasignacionPut["Data"].(map[string]interface{})["periodo_id"])+",tipo_vinculacion_id:"+fmt.Sprintf("%v", PreasignacionPut["Data"].(map[string]interface{})["tipo_vinculacion_id"]), &planDocenteGet); errGetPlan == nil {
+				if errGetPlan := request.GetJson(beego.AppConfig.String("PlanTrabajoDocenteService")+"plan_docente?query=docente_id:"+fmt.Sprintf("%v", PreasignacionPut["Data"].(map[string]interface{})["docente_id"])+",periodo_id:"+fmt.Sprintf("%v", PreasignacionPut["Data"].(map[string]interface{})["periodo_id"])+",tipo_vinculacion_id:"+fmt.Sprintf("%v", PreasignacionPut["Data"].(map[string]interface{})["tipo_vinculacion_id"]), &planDocenteGet); errGetPlan == nil {
 					if resultado != nil {
 						if fmt.Sprintf("%v", planDocenteGet["Data"]) != "[]" {
 							idPlanDocente := planDocenteGet["Data"].([]interface{})[0].(map[string]interface{})["_id"].(string)
 							preasignacionPut = map[string]interface{}{"plan_docente_id": idPlanDocente}
 
-							if errAprobacion := request.SendJson("https://"+beego.AppConfig.String("PlanTrabajoDocenteService")+"pre_asignacion/"+fmt.Sprintf("%v", preasignacion.(map[string]interface{})["Id"]), "PUT", &PreasignacionPut, preasignacionPut); errAprobacion == nil {
+							if errAprobacion := request.SendJson(beego.AppConfig.String("PlanTrabajoDocenteService")+"pre_asignacion/"+fmt.Sprintf("%v", preasignacion.(map[string]interface{})["Id"]), "PUT", &PreasignacionPut, preasignacionPut); errAprobacion == nil {
 								resultado = append(resultado, map[string]interface{}{"Id": PreasignacionPut["Data"].(map[string]interface{})["_id"], "actualizado": true, "plan_trabajo": true})
 							}
 						} else {
@@ -212,11 +214,11 @@ func DefinePreasignacion(body map[string]interface{}) requestmanager.APIResponse
 							}
 
 							var planDocentePost map[string]interface{}
-							if errPlan := request.SendJson("https://"+beego.AppConfig.String("PlanTrabajoDocenteService")+"plan_docente", "POST", &planDocentePost, planDocente); errPlan == nil {
+							if errPlan := request.SendJson(beego.AppConfig.String("PlanTrabajoDocenteService")+"plan_docente", "POST", &planDocentePost, planDocente); errPlan == nil {
 								idPlanDocente := planDocentePost["Data"].(map[string]interface{})["_id"].(string)
 								preasignacionPut = map[string]interface{}{"plan_docente_id": idPlanDocente}
 
-								if errAprobacion := request.SendJson("https://"+beego.AppConfig.String("PlanTrabajoDocenteService")+"pre_asignacion/"+fmt.Sprintf("%v", preasignacion.(map[string]interface{})["Id"]), "PUT", &PreasignacionPut, preasignacionPut); errAprobacion == nil {
+								if errAprobacion := request.SendJson(beego.AppConfig.String("PlanTrabajoDocenteService")+"pre_asignacion/"+fmt.Sprintf("%v", preasignacion.(map[string]interface{})["Id"]), "PUT", &PreasignacionPut, preasignacionPut); errAprobacion == nil {
 									resultado = append(resultado, map[string]interface{}{"Id": PreasignacionPut["Data"].(map[string]interface{})["_id"], "actualizado": true, "plan_trabajo": true})
 								}
 							}
@@ -239,7 +241,7 @@ func DefinePreasignacion(body map[string]interface{}) requestmanager.APIResponse
 	}
 
 	for _, preasignacion := range body["no-preasignaciones"].([]interface{}) {
-		if errAprobacion := request.SendJson("https://"+beego.AppConfig.String("PlanTrabajoDocenteService")+"pre_asignacion/"+fmt.Sprintf("%v", preasignacion.(map[string]interface{})["Id"]), "PUT", &PreasignacionPut, preasignacionPut); errAprobacion == nil {
+		if errAprobacion := request.SendJson(beego.AppConfig.String("PlanTrabajoDocenteService")+"pre_asignacion/"+fmt.Sprintf("%v", preasignacion.(map[string]interface{})["Id"]), "PUT", &PreasignacionPut, preasignacionPut); errAprobacion == nil {
 			resultado = append(resultado, map[string]interface{}{"Id": PreasignacionPut["Data"].(map[string]interface{})["_id"], "actualizado": true})
 		} else {
 			resultado = append(resultado, map[string]interface{}{"Id": preasignacion.(map[string]interface{})["Id"], "actualizado": false})
@@ -250,7 +252,7 @@ func DefinePreasignacion(body map[string]interface{}) requestmanager.APIResponse
 }
 
 func DeletePreasignacion(preAsignacionId string) requestmanager.APIResponse {
-	urlPreasignacion := "https://" + beego.AppConfig.String("PlanTrabajoDocenteService") + "pre_asignacion/" + preAsignacionId
+	urlPreasignacion := beego.AppConfig.String("PlanTrabajoDocenteService") + "pre_asignacion/" + preAsignacionId
 	var preAsignacion map[string]interface{}
 	if err := request.GetJson(urlPreasignacion, &preAsignacion); err != nil {
 		return requestresponse.APIResponseDTO(false, 404, nil, "Error en el servicio plan docente"+err.Error())
@@ -259,7 +261,7 @@ func DeletePreasignacion(preAsignacionId string) requestmanager.APIResponse {
 	espacioAcademicoId := preAsignacion["Data"].(map[string]interface{})["espacio_academico_id"].(string)
 	docenteId := preAsignacion["Data"].(map[string]interface{})["docente_id"].(string)
 
-	urlColocaciones := "https://" + beego.AppConfig.String("PlanTrabajoDocenteService") + "carga_plan?query=activo:true,espacio_academico_id:" + espacioAcademicoId
+	urlColocaciones := beego.AppConfig.String("PlanTrabajoDocenteService") + "carga_plan?query=activo:true,espacio_academico_id:" + espacioAcademicoId
 
 	var colocacionesRes map[string]interface{}
 	if err := request.GetJson(urlColocaciones, &colocacionesRes); err != nil {

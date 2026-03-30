@@ -174,11 +174,11 @@ func OcupacionEspacioFisico(salon, vigencia, plan string) requestmanager.APIResp
 	var cargas []map[string]interface{}
 	var errorGetAll bool
 
-	if errGetPlan := request.GetJson("https://"+beego.AppConfig.String("PlanTrabajoDocenteService")+"plan_docente?query=activo:true,periodo_id:"+vigencia+"&fields=_id", &planTrabajoDocente); errGetPlan == nil {
+	if errGetPlan := request.GetJson(beego.AppConfig.String("PlanTrabajoDocenteService")+"plan_docente?query=activo:true,periodo_id:"+vigencia+"&fields=_id", &planTrabajoDocente); errGetPlan == nil {
 		if fmt.Sprintf("%v", planTrabajoDocente["Data"]) != "[]" {
 			planes := planTrabajoDocente["Data"].([]interface{})
 			for _, plan := range planes {
-				if errGetCargas := request.GetJson("https://"+beego.AppConfig.String("PlanTrabajoDocenteService")+"carga_plan?query=activo:true,salon_id:"+salon+",plan_docente_id:"+plan.(map[string]interface{})["_id"].(string)+"&fields=horario,plan_docente_id,colocacion_espacio_academico_id", &cargaPlan); errGetCargas == nil {
+				if errGetCargas := request.GetJson(beego.AppConfig.String("PlanTrabajoDocenteService")+"carga_plan?query=activo:true,salon_id:"+salon+",plan_docente_id:"+plan.(map[string]interface{})["_id"].(string)+"&fields=horario,plan_docente_id,colocacion_espacio_academico_id", &cargaPlan); errGetCargas == nil {
 					if fmt.Sprintf("%v", cargaPlan["Data"]) != "[]" {
 						for _, carga := range cargaPlan["Data"].([]interface{}) {
 							if carga.(map[string]interface{})["plan_docente_id"] != plan {

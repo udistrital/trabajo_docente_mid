@@ -9,7 +9,7 @@ import (
 
 func DesactivarPreAsignacion(preAsignacionId string) (map[string]interface{}, error) {
 	var preAsignacion map[string]interface{}
-	urlPreAsignacion := "https://" + beego.AppConfig.String("PlanTrabajoDocenteService") + "pre_asignacion/" + preAsignacionId
+	urlPreAsignacion := beego.AppConfig.String("PlanTrabajoDocenteService") + "pre_asignacion/" + preAsignacionId
 	if err := request.GetJson(urlPreAsignacion, &preAsignacion); err != nil {
 		return nil, fmt.Errorf("error en el servicio plan docente: %v", err)
 	}
@@ -17,7 +17,7 @@ func DesactivarPreAsignacion(preAsignacionId string) (map[string]interface{}, er
 	preAsignacion = preAsignacion["Data"].(map[string]interface{})
 	preAsignacion["activo"] = false
 
-	urlPreasignacionPut := "https://" + beego.AppConfig.String("PlanTrabajoDocenteService") + "pre_asignacion/" + preAsignacion["_id"].(string)
+	urlPreasignacionPut := beego.AppConfig.String("PlanTrabajoDocenteService") + "pre_asignacion/" + preAsignacion["_id"].(string)
 	var preAsignacionPut map[string]interface{}
 	if err := request.SendJson(urlPreasignacionPut, "PUT", &preAsignacionPut, preAsignacion); err != nil {
 		return nil, fmt.Errorf("error en el servicio plan docente: %v", err)
@@ -31,13 +31,13 @@ func DesactivarPreAsignacion(preAsignacionId string) (map[string]interface{}, er
 // EstadoACambiar: Es el codigo de abreviacion del estado_plan
 func CambiarEstadoDePlanDocente(planDocenteId, estadoACambiar string) (map[string]interface{}, error) {
 	var planDocente map[string]interface{}
-	urlPlanDocente := "https://" + beego.AppConfig.String("PlanTrabajoDocenteService") + "plan_docente/" + planDocenteId
+	urlPlanDocente := beego.AppConfig.String("PlanTrabajoDocenteService") + "plan_docente/" + planDocenteId
 	if err := request.GetJson(urlPlanDocente, &planDocente); err != nil {
 		return nil, fmt.Errorf("error en el servicio plan docente: %v", err)
 	}
 
 	var estadoPlan map[string]interface{}
-	urlEstadoPlan := "https://" + beego.AppConfig.String("PlanTrabajoDocenteService") + "estado_plan?query=codigo_abreviacion:" + estadoACambiar
+	urlEstadoPlan := beego.AppConfig.String("PlanTrabajoDocenteService") + "estado_plan?query=codigo_abreviacion:" + estadoACambiar
 
 	if err := request.GetJson(urlEstadoPlan, &estadoPlan); err != nil {
 		return nil, fmt.Errorf("error en el servicio plan docente assas: %v", err)
@@ -49,7 +49,7 @@ func CambiarEstadoDePlanDocente(planDocenteId, estadoACambiar string) (map[strin
 	planDocente = planDocente["Data"].(map[string]interface{})
 	planDocente["estado_plan_id"] = estadoPlanId
 
-	urlPlanDocentePut := "https://" + beego.AppConfig.String("PlanTrabajoDocenteService") + "plan_docente/" + planDocenteId
+	urlPlanDocentePut := beego.AppConfig.String("PlanTrabajoDocenteService") + "plan_docente/" + planDocenteId
 	var planDocentePut map[string]interface{}
 	if err := request.SendJson(urlPlanDocentePut, "PUT", &planDocentePut, planDocente); err != nil {
 		return nil, fmt.Errorf("error en el servicio plan docente: %v", err)
