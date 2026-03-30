@@ -56,7 +56,7 @@ func ListaGruposEspaciosAcademicos(padre, vigencia string) requestmanager.APIRes
 
 func getAcademicSpacesByQuery(query string) (any, error) {
 	var resSpaces interface{}
-	urlAcademicSpaces := "https://" + beego.AppConfig.String("EspaciosAcademicosService") +
+	urlAcademicSpaces := beego.AppConfig.String("EspaciosAcademicosService") +
 		"espacio-academico?" + query
 	if errSpace := request.GetJson(urlAcademicSpaces, &resSpaces); errSpace == nil {
 		if resSpaces.(map[string]interface{})["Data"] != nil {

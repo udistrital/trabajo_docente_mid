@@ -60,7 +60,7 @@ func CambiarEstadoDePlanDocente(planDocenteId, estadoACambiar string) (map[strin
 
 func DesasignarDocenteDeEspacioAcademico(espacioAcademicoId, docenteId string) (map[string]interface{}, error) {
 	var espacioAcademico map[string]interface{}
-	urlPlanDocente := "https://" + beego.AppConfig.String("EspaciosAcademicosService") + "espacio-academico?query=_id:" + espacioAcademicoId
+	urlPlanDocente := beego.AppConfig.String("EspaciosAcademicosService") + "espacio-academico?query=_id:" + espacioAcademicoId
 	if err := request.GetJson(urlPlanDocente, &espacioAcademico); err != nil {
 		return nil, fmt.Errorf("error en el servicio espacios academicos: %v", err)
 	}
@@ -83,7 +83,7 @@ func DesasignarDocenteDeEspacioAcademico(espacioAcademicoId, docenteId string) (
 		espacioAcademico["docente_id"] = 0
 	}
 
-	urlEspacioAcademicoPut := "https://" + beego.AppConfig.String("EspaciosAcademicosService") + "espacio-academico/" + espacioAcademicoId
+	urlEspacioAcademicoPut := beego.AppConfig.String("EspaciosAcademicosService") + "espacio-academico/" + espacioAcademicoId
 	var espacioAcademicoPut map[string]interface{}
 	if err := request.SendJson(urlEspacioAcademicoPut, "PUT", &espacioAcademicoPut, espacioAcademico); err != nil {
 		return nil, fmt.Errorf("error en el servicio plan docente: %v", err)

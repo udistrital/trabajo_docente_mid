@@ -17,10 +17,10 @@ func ListaDocentesxDocumentoVinculacion(documento string, vinculacion int64) req
 	resDocumento := []interface{}{}
 	response := []interface{}{}
 
-	if errDocumento := request.GetJson("http://"+beego.AppConfig.String("TercerosService")+"datos_identificacion?query=Activo:true,Numero:"+documento+"&fields=TerceroId", &resDocumento); errDocumento == nil {
+	if errDocumento := request.GetJson(beego.AppConfig.String("TercerosService")+"datos_identificacion?query=Activo:true,Numero:"+documento+"&fields=TerceroId", &resDocumento); errDocumento == nil {
 		if fmt.Sprintf("%v", resDocumento) != "[map[]]" {
 			for _, documentoGet := range resDocumento {
-				if errVinculacion := request.GetJson("http://"+beego.AppConfig.String("TercerosService")+"vinculacion?query=Activo:true,"+
+				if errVinculacion := request.GetJson(beego.AppConfig.String("TercerosService")+"vinculacion?query=Activo:true,"+
 					"TipoVinculacionId:"+fmt.Sprintf("%d", vinculacion)+",TerceroPrincipalId.Id:"+fmt.Sprintf("%v", documentoGet.(map[string]interface{})["TerceroId"].(map[string]interface{})["Id"])+"&fields=TerceroPrincipalId", &resVinculacion); errVinculacion == nil {
 					if fmt.Sprintf("%v", resVinculacion) != "[map[]]" {
 						response = append(response, map[string]interface{}{
@@ -57,7 +57,7 @@ func ListaDocentesxNombreVinculacion(nombre string, vinculacion int64) requestma
 	resDocumento := []interface{}{}
 	response := []interface{}{}
 
-	if errVinculacion := request.GetJson("http://"+beego.AppConfig.String("TercerosService")+"vinculacion?limit=0&query=TipoVinculacionId__in:"+fmt.Sprintf("%d", vinculacion)+
+	if errVinculacion := request.GetJson(beego.AppConfig.String("TercerosService")+"vinculacion?limit=0&query=TipoVinculacionId__in:"+fmt.Sprintf("%d", vinculacion)+
 		",Activo:true,TerceroPrincipalId.NombreCompleto__icontains:"+nombre+"&fields=TerceroPrincipalId", &resVinculacion); errVinculacion == nil {
 		if fmt.Sprintf("%v", resVinculacion) != "[map[]]" {
 			var tercerosIds string
@@ -66,7 +66,7 @@ func ListaDocentesxNombreVinculacion(nombre string, vinculacion int64) requestma
 			}
 			tercerosIds = tercerosIds[:len(tercerosIds)-1]
 
-			if errDocumento := request.GetJson("http://"+beego.AppConfig.String("TercerosService")+"datos_identificacion?query=Activo:true,TerceroId__in:"+tercerosIds+"&fields=Numero,TerceroId", &resDocumento); errDocumento == nil {
+			if errDocumento := request.GetJson(beego.AppConfig.String("TercerosService")+"datos_identificacion?query=Activo:true,TerceroId__in:"+tercerosIds+"&fields=Numero,TerceroId", &resDocumento); errDocumento == nil {
 				for _, vinculacion := range resVinculacion {
 					for indexDocumento, documento := range resDocumento {
 
@@ -111,7 +111,7 @@ func BuscarDocentesPorDocumentoConVinculaciones(documento string) (response requ
 
 	// 1. Busca los terceros relacionados al documento
 	resTercero := []interface{}{}
-	errResTercero := request.GetJson("http://"+beego.AppConfig.String("TercerosService")+"datos_identificacion?query=Activo:true,Numero:"+documento, &resTercero)
+	errResTercero := request.GetJson(beego.AppConfig.String("TercerosService")+"datos_identificacion?query=Activo:true,Numero:"+documento, &resTercero)
 	if errResTercero != nil {
 		logs.Error(errResTercero)
 		response = requestmanager.APIResponseDTO(false, 404, nil, "No se encontraron registros de docentes")
@@ -128,7 +128,7 @@ func BuscarDocentesPorDocumentoConVinculaciones(documento string) (response requ
 
 		// 2. Buscar las vinculaciones del tercero por id del tercero
 		resVinculacion := []interface{}{}
-		errResVinculacion := request.GetJson("http://"+beego.AppConfig.String("TercerosService")+"vinculacion?query=Activo:true,tercero_principal_id:"+terceroId+"&fields=TipoVinculacionId", &resVinculacion)
+		errResVinculacion := request.GetJson(beego.AppConfig.String("TercerosService")+"vinculacion?query=Activo:true,tercero_principal_id:"+terceroId+"&fields=TipoVinculacionId", &resVinculacion)
 		if errResVinculacion != nil {
 			logs.Error(errResVinculacion)
 			continue // Continuar con el siguiente tercero
@@ -179,7 +179,7 @@ func BuscarDocentesPorNombreConVinculaciones(nombre string) (response requestman
 
 	// 1. Busca los terceros relacionados al nombre
 	resTercero := []interface{}{}
-	errResTercero := request.GetJson("http://"+beego.AppConfig.String("TercerosService")+"datos_identificacion?query=Activo:true,TerceroId__NombreCompleto__icontains:"+nombre+"&limit=0", &resTercero)
+	errResTercero := request.GetJson(beego.AppConfig.String("TercerosService")+"datos_identificacion?query=Activo:true,TerceroId__NombreCompleto__icontains:"+nombre+"&limit=0", &resTercero)
 	if errResTercero != nil {
 		logs.Error(errResTercero)
 		response = requestmanager.APIResponseDTO(false, 404, nil, "No se encontraron registros de docentes")
@@ -197,7 +197,7 @@ func BuscarDocentesPorNombreConVinculaciones(nombre string) (response requestman
 
 		// 2. Buscar las vinculaciones del tercero por id del tercero
 		resVinculacion := []interface{}{}
-		errResVinculacion := request.GetJson("http://"+beego.AppConfig.String("TercerosService")+"vinculacion?query=Activo:true,tercero_principal_id:"+terceroId+"&fields=TipoVinculacionId", &resVinculacion)
+		errResVinculacion := request.GetJson(beego.AppConfig.String("TercerosService")+"vinculacion?query=Activo:true,tercero_principal_id:"+terceroId+"&fields=TipoVinculacionId", &resVinculacion)
 		if errResVinculacion != nil {
 			logs.Error(errResVinculacion)
 			continue // Continuar con el siguiente tercero
@@ -253,7 +253,7 @@ func BuscarDocentesPorNombreConVinculaciones2(nombre string) (response requestma
 	buscarVinculaciones := func(vinculacionID int64) {
 		defer wg.Done()
 		resVinculacion := []interface{}{}
-		errResVinculacion := request.GetJson("http://"+beego.AppConfig.String("TercerosService")+"vinculacion?limit=0&query=TipoVinculacionId__in:"+fmt.Sprintf("%d", vinculacionID)+
+		errResVinculacion := request.GetJson(beego.AppConfig.String("TercerosService")+"vinculacion?limit=0&query=TipoVinculacionId__in:"+fmt.Sprintf("%d", vinculacionID)+
 			",Activo:true,TerceroPrincipalId.NombreCompleto__icontains:"+nombre+"&fields=TerceroPrincipalId,TipoVinculacionId", &resVinculacion)
 		if errResVinculacion != nil {
 			errCh <- errResVinculacion
@@ -272,7 +272,7 @@ func BuscarDocentesPorNombreConVinculaciones2(nombre string) (response requestma
 		}
 
 		resDocumento := []interface{}{}
-		errDocumento := request.GetJson("http://"+beego.AppConfig.String("TercerosService")+"datos_identificacion?query=Activo:true,TerceroId__in:"+tercerosIds+"&fields=Numero,TerceroId", &resDocumento)
+		errDocumento := request.GetJson(beego.AppConfig.String("TercerosService")+"datos_identificacion?query=Activo:true,TerceroId__in:"+tercerosIds+"&fields=Numero,TerceroId", &resDocumento)
 		if errDocumento != nil {
 			errCh <- errDocumento
 			return

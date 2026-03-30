@@ -51,14 +51,14 @@ func consultarDetalleAsignacion(asignaciones []interface{}, forTeacher bool) []m
 	var resEstado map[string]interface{}
 
 	for _, asignacion := range asignaciones {
-		if errDocente := request.GetJson("http://"+beego.AppConfig.String("TercerosService")+"tercero/"+asignacion.(map[string]interface{})["docente_id"].(string), &resDocente); errDocente == nil {
+		if errDocente := request.GetJson(beego.AppConfig.String("TercerosService")+"tercero/"+asignacion.(map[string]interface{})["docente_id"].(string), &resDocente); errDocente == nil {
 			memDocente[asignacion.(map[string]interface{})["docente_id"].(string)] = resDocente
-			if errDocumento := request.GetJson("http://"+beego.AppConfig.String("TercerosService")+"datos_identificacion?query=TerceroId.Id:"+asignacion.(map[string]interface{})["docente_id"].(string)+"&fields=Numero", &resDocumento); errDocumento == nil {
+			if errDocumento := request.GetJson(beego.AppConfig.String("TercerosService")+"datos_identificacion?query=TerceroId.Id:"+asignacion.(map[string]interface{})["docente_id"].(string)+"&fields=Numero", &resDocumento); errDocumento == nil {
 				memDocumento[asignacion.(map[string]interface{})["docente_id"].(string)] = resDocumento[0]["Numero"]
 			}
 		}
 
-		if errVinculacion := request.GetJson("http://"+beego.AppConfig.String("ParametroService")+"parametro/"+asignacion.(map[string]interface{})["tipo_vinculacion_id"].(string), &resVinculacion); errVinculacion == nil {
+		if errVinculacion := request.GetJson(beego.AppConfig.String("ParametroService")+"parametro/"+asignacion.(map[string]interface{})["tipo_vinculacion_id"].(string), &resVinculacion); errVinculacion == nil {
 			vinculacion := resVinculacion["Data"].(map[string]interface{})["Nombre"].(string)
 			vinculacion = strings.Replace(vinculacion, "DOCENTE DE ", "", 1)
 			vinculacion = strings.ToLower(vinculacion)
@@ -66,7 +66,7 @@ func consultarDetalleAsignacion(asignaciones []interface{}, forTeacher bool) []m
 		}
 
 		if memPeriodo[asignacion.(map[string]interface{})["periodo_id"].(string)] == nil {
-			if errPeriodo := request.GetJson("http://"+beego.AppConfig.String("ParametroService")+"periodo/"+fmt.Sprintf("%v", asignacion.(map[string]interface{})["periodo_id"]), &resPeriodo); errPeriodo == nil {
+			if errPeriodo := request.GetJson(beego.AppConfig.String("ParametroService")+"periodo/"+fmt.Sprintf("%v", asignacion.(map[string]interface{})["periodo_id"]), &resPeriodo); errPeriodo == nil {
 				memPeriodo[asignacion.(map[string]interface{})["periodo_id"].(string)] = resPeriodo["Data"].(map[string]interface{})["Nombre"].(string)
 			}
 		}

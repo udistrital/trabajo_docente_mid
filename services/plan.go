@@ -212,9 +212,9 @@ func consultarDetallePlan(planes []interface{}, idVinculacion int64) map[string]
 	var resEstado map[string]interface{}
 	var indexSeleccionado int
 
-	if errDocente := request.GetJson("http://"+beego.AppConfig.String("TercerosService")+"tercero/"+planes[0].(map[string]interface{})["docente_id"].(string), &resDocente); errDocente == nil {
+	if errDocente := request.GetJson(beego.AppConfig.String("TercerosService")+"tercero/"+planes[0].(map[string]interface{})["docente_id"].(string), &resDocente); errDocente == nil {
 		memDocente[planes[0].(map[string]interface{})["docente_id"].(string)] = resDocente
-		if errDocumento := request.GetJson("http://"+beego.AppConfig.String("TercerosService")+"datos_identificacion?query=TerceroId.Id:"+planes[0].(map[string]interface{})["docente_id"].(string)+"&fields=Numero", &resDocumento); errDocumento == nil {
+		if errDocumento := request.GetJson(beego.AppConfig.String("TercerosService")+"datos_identificacion?query=TerceroId.Id:"+planes[0].(map[string]interface{})["docente_id"].(string)+"&fields=Numero", &resDocumento); errDocumento == nil {
 			memDocente = map[string]interface{}{
 				"id":             planes[0].(map[string]interface{})["docente_id"].(string),
 				"nombre":         utils.Capitalize(resDocente["NombreCompleto"].(string)),
@@ -225,14 +225,14 @@ func consultarDetallePlan(planes []interface{}, idVinculacion int64) map[string]
 		}
 	}
 
-	if errPeriodo := request.GetJson("http://"+beego.AppConfig.String("ParametroService")+"periodo/"+fmt.Sprintf("%v", planes[0].(map[string]interface{})["periodo_id"]), &resPeriodo); errPeriodo == nil {
+	if errPeriodo := request.GetJson(beego.AppConfig.String("ParametroService")+"periodo/"+fmt.Sprintf("%v", planes[0].(map[string]interface{})["periodo_id"]), &resPeriodo); errPeriodo == nil {
 		response["periodo_academico"] = resPeriodo["Data"].(map[string]interface{})["Nombre"].(string)
 	}
 
 	for index, plan := range planes {
 		var espacioPlan []interface{}
 		cargaPlan := []interface{}{}
-		if errVinculacion := request.GetJson("http://"+beego.AppConfig.String("ParametroService")+"parametro/"+plan.(map[string]interface{})["tipo_vinculacion_id"].(string), &resVinculacion); errVinculacion == nil {
+		if errVinculacion := request.GetJson(beego.AppConfig.String("ParametroService")+"parametro/"+plan.(map[string]interface{})["tipo_vinculacion_id"].(string), &resVinculacion); errVinculacion == nil {
 			vinculacion := resVinculacion["Data"].(map[string]interface{})["Nombre"].(string)
 			vinculacion = strings.Replace(vinculacion, "DOCENTE DE ", "", 1)
 			vinculacion = strings.ToLower(vinculacion)
@@ -315,7 +315,7 @@ func consultarDetallePlan(planes []interface{}, idVinculacion int64) map[string]
 			for _, preasignacion := range resPreasignacion["Data"].([]interface{}) {
 				var resEspacioAcademico map[string]interface{}
 				if memEspaciosDetalle[preasignacion.(map[string]interface{})["espacio_academico_id"].(string)] == nil {
-					if errEspacioAcademico := request.GetJson("https://"+beego.AppConfig.String("EspaciosAcademicosService")+"espacio-academico/"+preasignacion.(map[string]interface{})["espacio_academico_id"].(string), &resEspacioAcademico); errEspacioAcademico == nil {
+					if errEspacioAcademico := request.GetJson(beego.AppConfig.String("EspaciosAcademicosService")+"espacio-academico/"+preasignacion.(map[string]interface{})["espacio_academico_id"].(string), &resEspacioAcademico); errEspacioAcademico == nil {
 						modular := false
 						if val, ok := resEspacioAcademico["Data"].(map[string]interface{})["espacio_modular"]; ok {
 							modular = val.(bool)
@@ -683,7 +683,7 @@ func ListaPlanPreaprobado(vigencia, proyecto int64) requestmanager.APIResponse {
 	planes_proyecto := []models.PlanDocente{}
 
 	for _, plan := range lista_planes {
-		_, err := requestmanager.Get("https://"+beego.AppConfig.String("EspaciosAcademicosService")+
+		_, err := requestmanager.Get(beego.AppConfig.String("EspaciosAcademicosService")+
 			fmt.Sprintf("espacio-academico?query=activo:true,periodo_id:%d,proyecto_academico_id:%d,docente_id:%s&fields=_id&limit=0", vigencia, proyecto, plan.Docente_id), requestmanager.ParseResponseFormato1)
 		if err == nil {
 			planes_proyecto = append(planes_proyecto, plan)
@@ -703,7 +703,7 @@ func ListaPlanPreaprobado(vigencia, proyecto int64) requestmanager.APIResponse {
 	estadoAprobadoIdActual := "646fcf784c0bc253c1c720d4"
 
 	for _, planProyecto := range planes_proyecto {
-		resp, err := requestmanager.Get("http://"+beego.AppConfig.String("TercerosService")+
+		resp, err := requestmanager.Get(beego.AppConfig.String("TercerosService")+
 			fmt.Sprintf("datos_identificacion?query=Activo:true,TerceroId__Id:%v&fields=TerceroId,Numero,TipoDocumentoId&sortby=FechaExpedicion,Id&order=desc&limit=1",
 				planProyecto.Docente_id), requestmanager.ParseResonseNoFormat)
 		if err != nil {
@@ -721,7 +721,7 @@ func ListaPlanPreaprobado(vigencia, proyecto int64) requestmanager.APIResponse {
 		datos_identificacion := models.DatosIdentificacion{}
 		utils.ParseData(resp.([]interface{})[0], &datos_identificacion)
 
-		resp, err = requestmanager.Get("http://"+beego.AppConfig.String("ParametroService")+
+		resp, err = requestmanager.Get(beego.AppConfig.String("ParametroService")+
 			fmt.Sprintf("parametro/%s", planProyecto.Tipo_vinculacion_id), requestmanager.ParseResponseFormato1)
 		if err != nil {
 			logs.Error(err)
@@ -769,7 +769,7 @@ func consultarEspaciosAcademicosInfoPadre(docente, periodo, vinculacion int64) (
 	preasignaciones := []models.PreAsignacion{}
 	utils.ParseData(response, &preasignaciones)
 	for _, preasignacion := range preasignaciones {
-		response, err := requestmanager.Get("https://"+beego.AppConfig.String("EspaciosAcademicosService")+
+		response, err := requestmanager.Get(beego.AppConfig.String("EspaciosAcademicosService")+
 			fmt.Sprintf("espacio-academico?query=activo:true,_id:%s&fields=_id,nombre,espacio_academico_padre&limit=1", preasignacion.Espacio_academico_id), requestmanager.ParseResponseFormato1)
 		if err != nil {
 			return nil, fmt.Errorf("EspaciosAcademicosService (espacio-academico): %s", err.Error())
