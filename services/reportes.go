@@ -488,7 +488,7 @@ func obtenerInformacionRequeridaRepCumplimiento(vigencia int64, proyectoFilter s
 			projectId := fmt.Sprintf("%d", espacio_academico.Proyecto_academico_id)
 
 			if (proyectoFilter == "0") || (proyectoFilter == projectId) {
-				resp, err = requestmanager.Get("http://"+beego.AppConfig.String("ProyectoAcademicoService")+
+				resp, err = requestmanager.Get(beego.AppConfig.String("ProyectoAcademicoService")+
 					fmt.Sprintf("proyecto_academico_institucion/%s", projectId), requestmanager.ParseResonseNoFormat)
 				if err != nil {
 					logs.Error(err)
