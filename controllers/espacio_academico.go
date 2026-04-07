@@ -19,6 +19,7 @@ func (c *EspacioAcademicoController) URLMapping() {
 	c.Mapping("GrupoEspacioAcademicoPadre", c.GrupoEspacioAcademicoPadre)
 	c.Mapping("EspaciosAcademicosProyectoPeriodo", c.EspaciosAcademicosProyectoPeriodo)
 	c.Mapping("GruposEspacioPeriodo", c.GruposEspacioPeriodo)
+	c.Mapping("InformacionCurso", c.InformacionCurso)
 }
 
 // GrupoEspacioAcademico ...
@@ -137,6 +138,32 @@ func (c *EspacioAcademicoController) GruposEspacioPeriodo() {
 		c.Ctx.Output.SetStatus(400)
 	} else {
 		resultado := services.ListaGruposEspacioPeriodo(anio, periodo, espacio)
+		c.Data["json"] = resultado
+		c.Ctx.Output.SetStatus(resultado.Status)
+	}
+
+	c.ServeJSON()
+}
+
+// InformacionCurso ...
+// @Title InformacionCurso
+// @Description Consulta el detalle de curso por id (CUR_ID) en academica
+// @Param	id		query 	string	true		"Id del curso en academica"
+// @Success 200 {}
+// @Failure 400 the request contains an incorrect parameter
+// @Failure 404 no record exist
+// @router /informacion-curso [get]
+func (c *EspacioAcademicoController) InformacionCurso() {
+	defer errorhandler.HandlePanic(&c.Controller)
+
+	id := c.GetString("id")
+
+	if id == "" {
+		logs.Error(id)
+		c.Data["json"] = requestmanager.APIResponseDTO(false, 400, nil, "Error: Parametro(s) con valores no validos")
+		c.Ctx.Output.SetStatus(400)
+	} else {
+		resultado := services.DetalleCursoId(id)
 		c.Data["json"] = resultado
 		c.Ctx.Output.SetStatus(resultado.Status)
 	}

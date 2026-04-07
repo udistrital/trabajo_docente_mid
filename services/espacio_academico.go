@@ -35,6 +35,20 @@ type grupoEspacioPeriodoXML struct {
 	Nombre            string `xml:"nombre"`
 }
 
+type detalleCursoIdXML struct {
+	Id                      string `xml:"id"`
+	Nivel                   string `xml:"nivel"`
+	CodigoProyectoAcademico string `xml:"codigoProyectoAcademico"`
+	ProyectoAcademico       string `xml:"proyectoAcademico"`
+	CodigoEspacioAcademico  string `xml:"codigoEspacioAcademico"`
+	EspacioAcademico        string `xml:"espacioAcademico"`
+	Grupo                   string `xml:"grupo"`
+}
+
+type informacionCursoXML struct {
+	Detalle detalleCursoIdXML `xml:"detalle"`
+}
+
 type coordinadorUsuarioXML struct {
 	CodigoCarrera      string                 `xml:"codigo_carrera"`
 	Coordinadores      []coordinadorUsuarioID `xml:"coordinador"`
@@ -138,6 +152,35 @@ func ListaGruposEspacioPeriodo(anio, periodo, espacio string) requestmanager.API
 			"Nivel":             grupo.Nivel,
 			"grupo":             grupo.Grupo,
 		})
+	}
+
+	return requestmanager.APIResponseDTO(true, 200, response)
+}
+
+// DetalleCursoId consulta el detalle de un curso por CUR_ID
+func DetalleCursoId(id string) requestmanager.APIResponse {
+	url := "http://" + beego.AppConfig.String("AcademicaEspacioAcademicoService") +
+		"informacion_curso/" + id
+
+	var responseXML informacionCursoXML
+	if err := request.GetXml(url, &responseXML); err != nil {
+		logs.Error(err)
+		return requestmanager.APIResponseDTO(false, 404, nil, "No se encontraron registros de cursos")
+	}
+
+	detalle := responseXML.Detalle
+	if strings.TrimSpace(detalle.Id) == "" {
+		return requestmanager.APIResponseDTO(false, 404, nil, "No se encontraron registros de cursos")
+	}
+
+	response := map[string]interface{}{
+		"id":                      detalle.Id,
+		"Nivel":                   detalle.Nivel,
+		"CodigoProyectoAcademico": detalle.CodigoProyectoAcademico,
+		"ProyectoAcademico":       detalle.ProyectoAcademico,
+		"CodigoEspacioAcademico":  detalle.CodigoEspacioAcademico,
+		"EspacioAcademico":        detalle.EspacioAcademico,
+		"grupo":                   detalle.Grupo,
 	}
 
 	return requestmanager.APIResponseDTO(true, 200, response)
