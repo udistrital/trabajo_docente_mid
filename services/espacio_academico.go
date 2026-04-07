@@ -59,73 +59,96 @@ type coordinadorUsuarioID struct {
 	CodigoCarrera string `xml:"codigo_carrera"`
 }
 
-func obtenerProyectoCurricularCoordinador(documento string) (string, error) {
+func obtenerProyectosCurricularesCoordinador(documento string) ([]string, error) {
 	url := "http://" + beego.AppConfig.String("AcademicaEspacioAcademicoService") +
 		"coordinador_usuario/" + documento
 
 	var responseXML coordinadorUsuarioXML
 	if err := request.GetXml(url, &responseXML); err != nil {
-		return "", err
+		return nil, err
 	}
 
-	codigoCarrera := strings.TrimSpace(responseXML.CodigoCarrera)
-	if codigoCarrera != "" {
-		return codigoCarrera, nil
+	proyectos := []string{}
+	proyectoExiste := map[string]bool{}
+
+	agregarProyecto := func(codigo string) {
+		codigoCarrera := strings.TrimSpace(codigo)
+		if codigoCarrera != "" && !proyectoExiste[codigoCarrera] {
+			proyectos = append(proyectos, codigoCarrera)
+			proyectoExiste[codigoCarrera] = true
+		}
 	}
+
+	agregarProyecto(responseXML.CodigoCarrera)
 
 	for _, coordinador := range responseXML.CoordinadorUsuario {
-		codigoCarrera = strings.TrimSpace(coordinador.CodigoCarrera)
-		if codigoCarrera != "" {
-			return codigoCarrera, nil
-		}
+		agregarProyecto(coordinador.CodigoCarrera)
 	}
 
 	for _, coordinador := range responseXML.Coordinadores {
-		codigoCarrera = strings.TrimSpace(coordinador.CodigoCarrera)
-		if codigoCarrera != "" {
-			return codigoCarrera, nil
-		}
+		agregarProyecto(coordinador.CodigoCarrera)
 	}
 
-	return "", fmt.Errorf("no se encontro codigo_carrera para el coordinador")
+	if len(proyectos) == 0 {
+		return nil, fmt.Errorf("no se encontro codigo_carrera para el coordinador")
+	}
+
+	return proyectos, nil
 }
 
 // ListaEspaciosAcademicosProyectoPeriodo consulta los espacios academicos
 // en academica_pruebas para un anio, periodo y proyecto curricular.
 func ListaEspaciosAcademicosProyectoPeriodo(anio, periodo, proyecto, documentoCoordinador string) requestmanager.APIResponse {
 	proyectoConsulta := strings.TrimSpace(proyecto)
+	proyectosConsulta := []string{}
+
 	if proyectoConsulta == "" {
 		if strings.TrimSpace(documentoCoordinador) == "" {
 			return requestmanager.APIResponseDTO(false, 400, nil, "Error: Parametro(s) con valores no validos")
 		}
 
 		var err error
-		proyectoConsulta, err = obtenerProyectoCurricularCoordinador(documentoCoordinador)
+		proyectosConsulta, err = obtenerProyectosCurricularesCoordinador(documentoCoordinador)
 		if err != nil {
 			logs.Error(err)
 			return requestmanager.APIResponseDTO(false, 404, nil, "No se encontro proyecto curricular del coordinador")
 		}
+	} else {
+		proyectosConsulta = append(proyectosConsulta, proyectoConsulta)
 	}
 
-	url := "http://" + beego.AppConfig.String("AcademicaEspacioAcademicoService") +
-		"espacios_academicos_proyecto_periodo/" + anio + "/" + periodo + "/" + proyectoConsulta
+	response := []map[string]interface{}{}
+	espaciosIds := map[string]bool{}
 
-	var responseXML espaciosAcademicosXML
-	if err := request.GetXml(url, &responseXML); err != nil {
-		logs.Error(err)
+	for _, proyectoItem := range proyectosConsulta {
+		url := "http://" + beego.AppConfig.String("AcademicaEspacioAcademicoService") +
+			"espacios_academicos_proyecto_periodo/" + anio + "/" + periodo + "/" + proyectoItem
+
+		var responseXML espaciosAcademicosXML
+		if err := request.GetXml(url, &responseXML); err != nil {
+			logs.Error(err)
+			continue
+		}
+
+		for _, espacio := range responseXML.Espacios {
+			if espaciosIds[espacio.Id] {
+				continue
+			}
+
+			espaciosIds[espacio.Id] = true
+			response = append(response, map[string]interface{}{
+				"_id":             espacio.Id,
+				"codigo":          espacio.Id,
+				"nombre":          espacio.Nombre,
+				"espacio_modular": espacio.EspacioModular,
+				"codigo_carrera":  espacio.CodigoCarrera,
+				"nombre_carrera":  espacio.NombreCarrera,
+			})
+		}
+	}
+
+	if len(response) == 0 {
 		return requestmanager.APIResponseDTO(false, 404, nil, "No se encontraron registros de espacios academicos")
-	}
-
-	response := make([]map[string]interface{}, 0, len(responseXML.Espacios))
-	for _, espacio := range responseXML.Espacios {
-		response = append(response, map[string]interface{}{
-			"_id":             espacio.Id,
-			"codigo":          espacio.Id,
-			"nombre":          espacio.Nombre,
-			"espacio_modular": espacio.EspacioModular,
-			"codigo_carrera":  espacio.CodigoCarrera,
-			"nombre_carrera":  espacio.NombreCarrera,
-		})
 	}
 
 	return requestmanager.APIResponseDTO(true, 200, response)
