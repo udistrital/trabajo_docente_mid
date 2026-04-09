@@ -14,7 +14,7 @@ import (
 func ArbolEspaciosFisicosDependencia(dependencia int64) requestmanager.APIResponse {
 	_ = dependencia
 
-	baseOikosURL := "http://" + beego.AppConfig.String("OikosService")
+	baseOikosURL := beego.AppConfig.String("OikosService")
 
 	sedes, err := requestmanager.Get(baseOikosURL+
 		"espacio_fisico?query=Activo:true,TipoEspacioFisicoId__Id:38&limit=0&sortby=Nombre&order=asc",

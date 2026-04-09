@@ -272,7 +272,7 @@ func consultarDetallePlan(planes []interface{}, idVinculacion int64) map[string]
 									"colocacion_espacio_academico_id": carga.(map[string]interface{})["colocacion_espacio_academico_id"].(string),
 								}
 								if sedeId != "NA" {
-									if errSede := request.GetJson("http://"+beego.AppConfig.String("OikosService")+"espacio_fisico?query=Id:"+sedeId+"&fields=Id,Nombre,CodigoAbreviacion", &sede); errSede == nil {
+									if errSede := request.GetJson(beego.AppConfig.String("OikosService")+"espacio_fisico?query=Id:"+sedeId+"&fields=Id,Nombre,CodigoAbreviacion", &sede); errSede == nil {
 										cargaDetalle["sede"] = sede[0]
 									}
 								} else {
@@ -280,7 +280,7 @@ func consultarDetallePlan(planes []interface{}, idVinculacion int64) map[string]
 								}
 
 								if edificioId != "NA" {
-									if errEdificio := request.GetJson("http://"+beego.AppConfig.String("OikosService")+"espacio_fisico/"+edificioId, &edificio); errEdificio == nil {
+									if errEdificio := request.GetJson(beego.AppConfig.String("OikosService")+"espacio_fisico/"+edificioId, &edificio); errEdificio == nil {
 										cargaDetalle["edificio"] = edificio
 									}
 								} else {
@@ -288,7 +288,7 @@ func consultarDetallePlan(planes []interface{}, idVinculacion int64) map[string]
 								}
 
 								if salonId != "NA" {
-									if errSalon := request.GetJson("http://"+beego.AppConfig.String("OikosService")+"espacio_fisico/"+salonId, &salon); errSalon == nil {
+									if errSalon := request.GetJson(beego.AppConfig.String("OikosService")+"espacio_fisico/"+salonId, &salon); errSalon == nil {
 										cargaDetalle["salon"] = salon
 									}
 								} else {
