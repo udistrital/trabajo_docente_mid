@@ -1107,7 +1107,7 @@ func generarReporteCumplimiento(infoRequerida infoRequeridaCumplimiento) request
 
 // funciones transversales
 func consultarInfoEspacioFisico(sede_id, edificio_id, salon_id string) (interface{}, error) {
-	sede, err := requestmanager.Get(+beego.AppConfig.String("OikosService")+fmt.Sprintf("espacio_fisico?query=Id:%s&fields=Id,Nombre,CodigoAbreviacion&limit=1", sede_id),
+	sede, err := requestmanager.Get(beego.AppConfig.String("OikosService")+fmt.Sprintf("espacio_fisico?query=Id:%s&fields=Id,Nombre,CodigoAbreviacion&limit=1", sede_id),
 		requestmanager.ParseResonseNoFormat)
 
 	if err != nil {
