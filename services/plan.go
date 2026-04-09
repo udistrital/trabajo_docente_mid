@@ -310,27 +310,61 @@ func consultarDetallePlan(planes []interface{}, idVinculacion int64) map[string]
 			}
 		}
 
+		// Función original para SGA V2
+		/*
+			var resPreasignacion map[string]interface{}
+			if errPreasignacion := request.GetJson(beego.AppConfig.String("PlanTrabajoDocenteService")+"pre_asignacion?query=activo:true,aprobacion_docente:true,aprobacion_proyecto:true,plan_docente_id:"+plan.(map[string]interface{})["_id"].(string), &resPreasignacion); errPreasignacion == nil {
+				for _, preasignacion := range resPreasignacion["Data"].([]interface{}) {
+					var resEspacioAcademico map[string]interface{}
+					if memEspaciosDetalle[preasignacion.(map[string]interface{})["espacio_academico_id"].(string)] == nil {
+						if errEspacioAcademico := request.GetJson(beego.AppConfig.String("EspaciosAcademicosService")+"espacio-academico/"+preasignacion.(map[string]interface{})["espacio_academico_id"].(string), &resEspacioAcademico); errEspacioAcademico == nil {
+							modular := false
+							if val, ok := resEspacioAcademico["Data"].(map[string]interface{})["espacio_modular"]; ok {
+								modular = val.(bool)
+							}
+							memEspaciosDetalle[preasignacion.(map[string]interface{})["espacio_academico_id"].(string)] = map[string]interface{}{
+								"espacio_academico": resEspacioAcademico["Data"].(map[string]interface{})["nombre"].(string),
+								"nombre":            resEspacioAcademico["Data"].(map[string]interface{})["nombre"].(string) + " - " + resEspacioAcademico["Data"].(map[string]interface{})["grupo"].(string),
+								"grupo":             resEspacioAcademico["Data"].(map[string]interface{})["grupo"],
+								"codigo":            resEspacioAcademico["Data"].(map[string]interface{})["codigo"].(string),
+								"id":                preasignacion.(map[string]interface{})["espacio_academico_id"].(string),
+								"plan_id":           plan.(map[string]interface{})["_id"].(string),
+								"proyecto_id":       resEspacioAcademico["Data"].(map[string]interface{})["proyecto_academico_id"],
+								"espacio_modular":   modular,
+							}
+							espacioPlan = append(espacioPlan, memEspaciosDetalle[preasignacion.(map[string]interface{})["espacio_academico_id"].(string)])
+						}
+					} else {
+						espacioPlan = append(espacioPlan, memEspaciosDetalle[preasignacion.(map[string]interface{})["espacio_academico_id"].(string)])
+					}
+
+				}
+			}
+		*/
+
+		// // Función duplicada para SGA V1
 		var resPreasignacion map[string]interface{}
 		if errPreasignacion := request.GetJson(beego.AppConfig.String("PlanTrabajoDocenteService")+"pre_asignacion?query=activo:true,aprobacion_docente:true,aprobacion_proyecto:true,plan_docente_id:"+plan.(map[string]interface{})["_id"].(string), &resPreasignacion); errPreasignacion == nil {
+			//fmt.Printf("resPreasignacion Data: %+v\n", resPreasignacion["Data"])
 			for _, preasignacion := range resPreasignacion["Data"].([]interface{}) {
-				var resEspacioAcademico map[string]interface{}
+				var responseXML informacionCursoXML
 				if memEspaciosDetalle[preasignacion.(map[string]interface{})["espacio_academico_id"].(string)] == nil {
-					if errEspacioAcademico := request.GetJson(beego.AppConfig.String("EspaciosAcademicosService")+"espacio-academico/"+preasignacion.(map[string]interface{})["espacio_academico_id"].(string), &resEspacioAcademico); errEspacioAcademico == nil {
-						modular := false
-						if val, ok := resEspacioAcademico["Data"].(map[string]interface{})["espacio_modular"]; ok {
-							modular = val.(bool)
+					url := "http://" + beego.AppConfig.String("AcademicaEspacioAcademicoService") + "informacion_curso/" + preasignacion.(map[string]interface{})["espacio_academico_id"].(string)
+					if errEspacioAcademico := request.GetXml(url, &responseXML); errEspacioAcademico == nil {
+						detalle := responseXML.Detalle
+						if strings.TrimSpace(detalle.Id) != "" {
+							memEspaciosDetalle[preasignacion.(map[string]interface{})["espacio_academico_id"].(string)] = map[string]interface{}{
+								"espacio_academico": detalle.EspacioAcademico,
+								"nombre":            detalle.EspacioAcademico + " - " + detalle.Grupo,
+								"grupo":             detalle.Grupo,
+								"codigo":            detalle.CodigoEspacioAcademico,
+								"id":                preasignacion.(map[string]interface{})["espacio_academico_id"].(string),
+								"plan_id":           plan.(map[string]interface{})["_id"].(string),
+								"proyecto_id":       detalle.CodigoProyectoAcademico,
+								"espacio_modular":   false,
+							}
+							espacioPlan = append(espacioPlan, memEspaciosDetalle[preasignacion.(map[string]interface{})["espacio_academico_id"].(string)])
 						}
-						memEspaciosDetalle[preasignacion.(map[string]interface{})["espacio_academico_id"].(string)] = map[string]interface{}{
-							"espacio_academico": resEspacioAcademico["Data"].(map[string]interface{})["nombre"].(string),
-							"nombre":            resEspacioAcademico["Data"].(map[string]interface{})["nombre"].(string) + " - " + resEspacioAcademico["Data"].(map[string]interface{})["grupo"].(string),
-							"grupo":             resEspacioAcademico["Data"].(map[string]interface{})["grupo"],
-							"codigo":            resEspacioAcademico["Data"].(map[string]interface{})["codigo"].(string),
-							"id":                preasignacion.(map[string]interface{})["espacio_academico_id"].(string),
-							"plan_id":           plan.(map[string]interface{})["_id"].(string),
-							"proyecto_id":       resEspacioAcademico["Data"].(map[string]interface{})["proyecto_academico_id"],
-							"espacio_modular":   modular,
-						}
-						espacioPlan = append(espacioPlan, memEspaciosDetalle[preasignacion.(map[string]interface{})["espacio_academico_id"].(string)])
 					}
 				} else {
 					espacioPlan = append(espacioPlan, memEspaciosDetalle[preasignacion.(map[string]interface{})["espacio_academico_id"].(string)])
