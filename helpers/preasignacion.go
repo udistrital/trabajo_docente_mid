@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/astaxie/beego"
+	"github.com/astaxie/beego/logs"
 	"github.com/udistrital/utils_oas/request"
 )
 
@@ -65,7 +66,16 @@ func DesasignarDocenteDeEspacioAcademico(espacioAcademicoId, docenteId string) (
 		return nil, fmt.Errorf("error en el servicio espacios academicos: %v", err)
 	}
 
-	espacioAcademico = espacioAcademico["Data"].([]interface{})[0].(map[string]interface{})
+	data, ok := espacioAcademico["Data"].([]interface{})
+	if !ok || len(data) == 0 {
+		logs.Warn("no se encontro espacio academico para desasignar docente, espacio_academico_id=%s", espacioAcademicoId)
+		return nil, nil
+	}
+
+	espacioAcademico, ok = data[0].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("respuesta invalida del servicio espacios academicos para _id %s", espacioAcademicoId)
+	}
 
 	if espacioAcademico["espacio_modular"] == true {
 		listaModularDocentes := espacioAcademico["lista_modular_docentes"].([]interface{})
