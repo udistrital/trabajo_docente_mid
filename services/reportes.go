@@ -93,7 +93,7 @@ func obtenerInformacionRequeridaRepCargaLectiva(docente, vinculacion, periodo in
 	utils.ParseData(resp, &datosCargaPlan)
 
 	for i := 0; i < len(datosCargaPlan); i++ {
-		resp, err := requestmanager.Get("https://"+beego.AppConfig.String("HorarioService")+
+		resp, err := requestmanager.Get(beego.AppConfig.String("HorarioService")+
 			fmt.Sprintf("colocacion-espacio-academico/%s", datosCargaPlan[i].Colocacion_espacio_academico_id), requestmanager.ParseResponseFormato2)
 
 		if err != nil {
@@ -488,7 +488,7 @@ func obtenerInformacionRequeridaRepCumplimiento(vigencia int64, proyectoFilter s
 			projectId := fmt.Sprintf("%d", espacio_academico.Proyecto_academico_id)
 
 			if (proyectoFilter == "0") || (proyectoFilter == projectId) {
-				resp, err = requestmanager.Get("http://"+beego.AppConfig.String("ProyectoAcademicoService")+
+				resp, err = requestmanager.Get(beego.AppConfig.String("ProyectoAcademicoService")+
 					fmt.Sprintf("proyecto_academico_institucion/%s", projectId), requestmanager.ParseResonseNoFormat)
 				if err != nil {
 					logs.Error(err)
@@ -1107,19 +1107,19 @@ func generarReporteCumplimiento(infoRequerida infoRequeridaCumplimiento) request
 
 // funciones transversales
 func consultarInfoEspacioFisico(sede_id, edificio_id, salon_id string) (interface{}, error) {
-	sede, err := requestmanager.Get("http://"+beego.AppConfig.String("OikosService")+fmt.Sprintf("espacio_fisico?query=Id:%s&fields=Id,Nombre,CodigoAbreviacion&limit=1", sede_id),
+	sede, err := requestmanager.Get(beego.AppConfig.String("OikosService")+fmt.Sprintf("espacio_fisico?query=Id:%s&fields=Id,Nombre,CodigoAbreviacion&limit=1", sede_id),
 		requestmanager.ParseResonseNoFormat)
 
 	if err != nil {
 		return nil, err
 	}
-	edificio, err := requestmanager.Get("http://"+beego.AppConfig.String("OikosService")+fmt.Sprintf("espacio_fisico?query=Id:%s&fields=Id,Nombre,CodigoAbreviacion&limit=1", edificio_id),
+	edificio, err := requestmanager.Get(beego.AppConfig.String("OikosService")+fmt.Sprintf("espacio_fisico?query=Id:%s&fields=Id,Nombre,CodigoAbreviacion&limit=1", edificio_id),
 		requestmanager.ParseResonseNoFormat)
 
 	if err != nil {
 		return nil, err
 	}
-	salon, err := requestmanager.Get("http://"+beego.AppConfig.String("OikosService")+fmt.Sprintf("espacio_fisico?query=Id:%s&fields=Id,Nombre,CodigoAbreviacion&limit=1", salon_id),
+	salon, err := requestmanager.Get(beego.AppConfig.String("OikosService")+fmt.Sprintf("espacio_fisico?query=Id:%s&fields=Id,Nombre,CodigoAbreviacion&limit=1", salon_id),
 		requestmanager.ParseResonseNoFormat)
 	if err != nil {
 		return nil, err

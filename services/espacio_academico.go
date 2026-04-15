@@ -269,7 +269,7 @@ func getAcademicSpacesByQuery(query string) (any, error) {
 }
 
 func getAcademicProjectByQuery(query string, resProject *[]any) error {
-	urlAcademicProject := "http://" + beego.AppConfig.String("ProyectoAcademicoService") +
+	urlAcademicProject := beego.AppConfig.String("ProyectoAcademicoService") +
 		"proyecto_academico_institucion?" + query
 
 	if errProject := request.GetJson(urlAcademicProject, &resProject); errProject == nil {
