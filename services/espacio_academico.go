@@ -2,6 +2,8 @@ package services
 
 import (
 	"fmt"
+	"math"
+	"strconv"
 	"strings"
 
 	"github.com/astaxie/beego"
@@ -57,6 +59,28 @@ type coordinadorUsuarioXML struct {
 
 type coordinadorUsuarioID struct {
 	CodigoCarrera string `xml:"codigo_carrera"`
+}
+
+type informacionHorariosXML struct {
+	Horarios []horarioXML `xml:"horario"`
+}
+
+type horarioXML struct {
+	IdEdificio             string `xml:"id_edificio"`
+	Periodo                string `xml:"periodo"`
+	ActivoEspacioAcademico string `xml:"activo_espacio_academico"`
+	HoraInicio             string `xml:"hora_inicio"`
+	CantidadHoras          string `xml:"cantidad_horas"`
+	Grupo                  string `xml:"grupo"`
+	IdHorario              string `xml:"id_horario"`
+	ActivoHorario          string `xml:"activo_horario"`
+	IdSalon                string `xml:"id_salon"`
+	IdEspacioAcademico     string `xml:"id_espacio_academico"`
+	IdSede                 string `xml:"id_sede"`
+	IdEspacioFisico        string `xml:"id_espacio_fisico"`
+	HoraFin                string `xml:"hora_fin"`
+	NombreEspacioAcademico string `xml:"nombre_espacio_academico"`
+	DiaSemana              string `xml:"dia_semana"`
 }
 
 func obtenerProyectosCurricularesCoordinador(documento string) ([]string, error) {
@@ -204,6 +228,119 @@ func DetalleCursoId(id string) requestmanager.APIResponse {
 		"CodigoEspacioAcademico":  detalle.CodigoEspacioAcademico,
 		"EspacioAcademico":        detalle.EspacioAcademico,
 		"grupo":                   detalle.Grupo,
+	}
+
+	return requestmanager.APIResponseDTO(true, 200, response)
+}
+
+func parseNumber(value string) float64 {
+	parsed, err := strconv.ParseFloat(strings.TrimSpace(value), 64)
+	if err != nil {
+		return 0
+	}
+	return parsed
+}
+
+func formatHour(value float64) string {
+	totalMinutes := int(math.Round(value * 60))
+	hour := totalMinutes / 60
+	minute := totalMinutes % 60
+	return fmt.Sprintf("%02d:%02d", hour, minute)
+}
+
+func parseBool(value string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	return normalized == "true" || normalized == "1"
+}
+
+// InformacionHorarios consulta el endpoint de academica y transforma la respuesta
+// al formato requerido por colocacion-espacio-academico para el cliente.
+func InformacionHorarios(anio, periodo, asignaturaID, grupoID string) requestmanager.APIResponse {
+	url := "http://" + beego.AppConfig.String("AcademicaEspacioAcademicoService") +
+		"informacion_horarios/" + anio + "/" + periodo + "/" + asignaturaID + "/" + grupoID
+
+	var responseXML informacionHorariosXML
+	if err := request.GetXml(url, &responseXML); err != nil {
+		logs.Error(err)
+		return requestmanager.APIResponseDTO(false, 404, nil, "No se encontraron horarios para los parametros consultados")
+	}
+
+	response := make([]map[string]interface{}, 0, len(responseXML.Horarios))
+	for _, horario := range responseXML.Horarios {
+		if !parseBool(horario.ActivoHorario) || !parseBool(horario.ActivoEspacioAcademico) {
+			continue
+		}
+
+		diaSemana := parseNumber(horario.DiaSemana)
+		horaInicio := parseNumber(horario.HoraInicio)
+		cantidadHoras := parseNumber(horario.CantidadHoras)
+		horaFin := parseNumber(horario.HoraFin)
+		if horaFin == 0 {
+			horaFin = horaInicio + cantidadHoras
+		}
+
+		posX := (diaSemana - 1) * 110
+		posY := ((horaInicio*60 - 360) / 15) * 22.5
+
+		colocacion := map[string]interface{}{
+			"dragPosition": map[string]interface{}{
+				"x": posX,
+				"y": posY,
+			},
+			"estado": 2,
+			"finalPosition": map[string]interface{}{
+				"x": posX,
+				"y": posY,
+			},
+			"horaFormato": fmt.Sprintf("%s - %s", formatHour(horaInicio), formatHour(horaFin)),
+			"horas":       cantidadHoras,
+			"prevPosition": map[string]interface{}{
+				"x": posX,
+				"y": posY,
+			},
+			"tipo": 1,
+		}
+
+		resumenColocacion := map[string]interface{}{
+			"colocacion": colocacion,
+			"espacio_fisico": map[string]interface{}{
+				"edificio_id": horario.IdEdificio,
+				"salon_id":    horario.IdSalon,
+				"sede_id":     horario.IdSede,
+				"sede": map[string]interface{}{
+					"Id":                horario.IdSede,
+					"CodigoAbreviacion": horario.IdSede,
+					"Nombre":            horario.IdSede,
+				},
+				"edificio": map[string]interface{}{
+					"Id":     horario.IdEdificio,
+					"Nombre": horario.IdEdificio,
+				},
+				"salon": map[string]interface{}{
+					"Id":     horario.IdSalon,
+					"Nombre": horario.IdSalon,
+				},
+			},
+		}
+
+		espacioAcademico := map[string]interface{}{
+			"_id":                     horario.IdEspacioAcademico,
+			"activo":                  parseBool(horario.ActivoEspacioAcademico),
+			"espacio_academico_padre": nil,
+			"grupo":                   horario.Grupo,
+			"nombre":                  horario.NombreEspacioAcademico,
+		}
+
+		response = append(response, map[string]interface{}{
+			"_id":                            horario.IdHorario,
+			"EspacioAcademicoId":             horario.IdEspacioAcademico,
+			"EspacioFisicoId":                horario.IdEspacioFisico,
+			"ColocacionEspacioAcademico":     colocacion,
+			"ResumenColocacionEspacioFisico": resumenColocacion,
+			"Periodo":                        horario.Periodo,
+			"Activo":                         parseBool(horario.ActivoHorario),
+			"EspacioAcademico":               espacioAcademico,
+		})
 	}
 
 	return requestmanager.APIResponseDTO(true, 200, response)
