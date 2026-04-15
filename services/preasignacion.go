@@ -14,6 +14,23 @@ import (
 	requestmanager "github.com/udistrital/utils_oas/requestresponse"
 )
 
+func obtenerIdRelacionado(valor interface{}) string {
+	if valor == nil {
+		return ""
+	}
+
+	switch v := valor.(type) {
+	case string:
+		return v
+	case map[string]interface{}:
+		if id, ok := v["_id"]; ok && id != nil {
+			return fmt.Sprintf("%v", id)
+		}
+	}
+
+	return ""
+}
+
 // Preasignacion ...
 func ListaPreasignacion(vigencia string) requestmanager.APIResponse {
 	var resPreasignaciones map[string]interface{}
@@ -41,10 +58,8 @@ func consultarDetallePreasignacion(preasignaciones []interface{}) []map[string]i
 	memPeriodo := map[string]interface{}{}
 	memDocente := map[string]interface{}{}
 	response := []map[string]interface{}{}
-	var resEspacioAcademico map[string]interface{}
 	var resPeriodo map[string]interface{}
 	var resDocente map[string]interface{}
-	var resProyecto []map[string]interface{}
 
 	for _, preasignacion := range preasignaciones {
 		if errDocente := request.GetJson(beego.AppConfig.String("TercerosService")+"tercero/"+preasignacion.(map[string]interface{})["docente_id"].(string), &resDocente); errDocente == nil {
@@ -52,19 +67,16 @@ func consultarDetallePreasignacion(preasignaciones []interface{}) []map[string]i
 		}
 
 		if memEspacios[preasignacion.(map[string]interface{})["espacio_academico_id"].(string)] == nil {
-			fmt.Println("url ", beego.AppConfig.String("EspaciosAcademicosService")+"espacio-academico/"+fmt.Sprintf("%v", preasignacion.(map[string]interface{})["espacio_academico_id"]))
-			if errEspacioAcademico := request.GetJson(beego.AppConfig.String("EspaciosAcademicosService")+"espacio-academico/"+fmt.Sprintf("%v", preasignacion.(map[string]interface{})["espacio_academico_id"]), &resEspacioAcademico); errEspacioAcademico == nil {
-				fmt.Println("url ", beego.AppConfig.String("ProyectoAcademicoService")+"proyecto_academico_institucion?query=Id:"+fmt.Sprintf("%v", resEspacioAcademico["Data"].(map[string]interface{})["proyecto_academico_id"]))
-				if errProyecto := request.GetJson(beego.AppConfig.String("ProyectoAcademicoService")+"proyecto_academico_institucion?query=Id:"+fmt.Sprintf("%v", resEspacioAcademico["Data"].(map[string]interface{})["proyecto_academico_id"]), &resProyecto); errProyecto == nil {
-					memEspacios[preasignacion.(map[string]interface{})["espacio_academico_id"].(string)] = map[string]interface{}{
-						"espacio_academico":       resEspacioAcademico["Data"].(map[string]interface{})["nombre"].(string),
-						"grupo":                   resEspacioAcademico["Data"].(map[string]interface{})["grupo"],
-						"codigo":                  resEspacioAcademico["Data"].(map[string]interface{})["codigo"].(string),
-						"proyecto_academico":      resEspacioAcademico["Data"].(map[string]interface{})["proyecto_academico_id"],
-						"proyecto":                resProyecto[0]["Nombre"].(string),
-						"nivel":                   resProyecto[0]["NivelFormacionId"].(map[string]interface{})["Nombre"].(string),
-						"espacio_academico_padre": resEspacioAcademico["Data"].(map[string]interface{})["espacio_academico_padre"].(map[string]interface{})["_id"].(string),
-					}
+			// Consultar detalle del curso usando el nuevo endpoint que consolida información de Oracle
+			cursoDetalle := DetalleCursoId(preasignacion.(map[string]interface{})["espacio_academico_id"].(string))
+			if cursoDetalle.Success && cursoDetalle.Data != nil {
+				cursoData := cursoDetalle.Data.(map[string]interface{})
+				memEspacios[preasignacion.(map[string]interface{})["espacio_academico_id"].(string)] = map[string]interface{}{
+					"espacio_academico": cursoData["EspacioAcademico"].(string),
+					"grupo":             cursoData["grupo"].(string),
+					"codigo":            cursoData["CodigoEspacioAcademico"].(string),
+					"proyecto":          cursoData["ProyectoAcademico"].(string),
+					"nivel":             cursoData["Nivel"].(string),
 				}
 			}
 		}
@@ -81,8 +93,8 @@ func consultarDetallePreasignacion(preasignaciones []interface{}) []map[string]i
 			"docente":                 utils.Capitalize(memDocente[preasignacion.(map[string]interface{})["docente_id"].(string)].(map[string]interface{})["NombreCompleto"].(string)),
 			"tipo_vinculacion_id":     preasignacion.(map[string]interface{})["tipo_vinculacion_id"].(string),
 			"espacio_academico":       memEspacios[preasignacion.(map[string]interface{})["espacio_academico_id"].(string)].(map[string]interface{})["espacio_academico"],
-			"espacio_academico_padre": memEspacios[preasignacion.(map[string]interface{})["espacio_academico_id"].(string)].(map[string]interface{})["espacio_academico_padre"],
 			"espacio_academico_id":    preasignacion.(map[string]interface{})["espacio_academico_id"].(string),
+			"espacio_academico_padre": memEspacios[preasignacion.(map[string]interface{})["espacio_academico_id"].(string)].(map[string]interface{})["codigo"],
 			"grupo":                   memEspacios[preasignacion.(map[string]interface{})["espacio_academico_id"].(string)].(map[string]interface{})["grupo"],
 			"proyecto":                memEspacios[preasignacion.(map[string]interface{})["espacio_academico_id"].(string)].(map[string]interface{})["proyecto"],
 			"nivel":                   memEspacios[preasignacion.(map[string]interface{})["espacio_academico_id"].(string)].(map[string]interface{})["nivel"],
@@ -93,8 +105,7 @@ func consultarDetallePreasignacion(preasignaciones []interface{}) []map[string]i
 			"aprobacion_proyecto":     map[string]interface{}{"value": preasignacion.(map[string]interface{})["aprobacion_proyecto"].(bool), "disabled": false},
 			"editar":                  map[string]interface{}{"value": nil, "type": "editar", "disabled": false},
 			"enviar":                  map[string]interface{}{"value": nil, "type": "enviar", "disabled": preasignacion.(map[string]interface{})["aprobacion_proyecto"].(bool)},
-			// "borrar":                  map[string]interface{}{"value": nil, "type": "borrar", "disabled": preasignacion.(map[string]interface{})["aprobacion_docente"].(bool) && preasignacion.(map[string]interface{})["aprobacion_proyecto"].(bool)},
-			"borrar": map[string]interface{}{"value": nil, "type": "borrar", "disabled": false},
+			"borrar":                  map[string]interface{}{"value": nil, "type": "borrar", "disabled": false},
 		})
 	}
 	return response
@@ -145,8 +156,10 @@ func DefinePreasignacion(body map[string]interface{}) requestmanager.APIResponse
 				// Trae el espacio academico hijo para posterior actualización con el docente asigando
 				var EspacioAcademicoHijo map[string]interface{}
 				if errEspacios := request.GetJson(beego.AppConfig.String("EspaciosAcademicosService")+"espacio-academico/"+fmt.Sprintf("%v", PreasignacionPut["Data"].(map[string]interface{})["espacio_academico_id"]), &EspacioAcademicoHijo); errEspacios == nil {
-					if fmt.Sprintf("%v", EspacioAcademicoHijo["Data"]) != "[]" {
-						EspacioAcademicoHijoPut := EspacioAcademicoHijo["Data"].(map[string]interface{})
+					if espacioData, ok := EspacioAcademicoHijo["Data"].(map[string]interface{}); ok && espacioData != nil {
+						EspacioAcademicoHijoPut := espacioData
+						espacioAcademicoPadreID := obtenerIdRelacionado(EspacioAcademicoHijoPut["espacio_academico_padre"])
+						estadoAprobacionID := obtenerIdRelacionado(EspacioAcademicoHijoPut["estado_aprobacion_id"])
 
 						if esp_mod, ok := EspacioAcademicoHijoPut["espacio_modular"]; ok {
 							if esp_mod.(bool) {
@@ -164,17 +177,29 @@ func DefinePreasignacion(body map[string]interface{}) requestmanager.APIResponse
 									EspacioAcademicoHijoPut["lista_modular_docentes"] = listDocents
 								}
 
-								EspacioAcademicoHijoPut["espacio_academico_padre"], _ = EspacioAcademicoHijo["Data"].(map[string]interface{})["espacio_academico_padre"].(map[string]interface{})["_id"].(string)
-								EspacioAcademicoHijoPut["estado_aprobacion_id"] = EspacioAcademicoHijo["Data"].(map[string]interface{})["estado_aprobacion_id"].(map[string]interface{})["_id"].(string)
+								if espacioAcademicoPadreID != "" {
+									EspacioAcademicoHijoPut["espacio_academico_padre"] = espacioAcademicoPadreID
+								}
+								if estadoAprobacionID != "" {
+									EspacioAcademicoHijoPut["estado_aprobacion_id"] = estadoAprobacionID
+								}
 							} else {
 								EspacioAcademicoHijoPut["docente_id"], _ = strconv.Atoi(PreasignacionPut["Data"].(map[string]interface{})["docente_id"].(string))
-								EspacioAcademicoHijoPut["espacio_academico_padre"] = EspacioAcademicoHijo["Data"].(map[string]interface{})["espacio_academico_padre"].(map[string]interface{})["_id"].(string)
-								EspacioAcademicoHijoPut["estado_aprobacion_id"] = EspacioAcademicoHijo["Data"].(map[string]interface{})["estado_aprobacion_id"].(map[string]interface{})["_id"].(string)
+								if espacioAcademicoPadreID != "" {
+									EspacioAcademicoHijoPut["espacio_academico_padre"] = espacioAcademicoPadreID
+								}
+								if estadoAprobacionID != "" {
+									EspacioAcademicoHijoPut["estado_aprobacion_id"] = estadoAprobacionID
+								}
 							}
 						} else {
 							EspacioAcademicoHijoPut["docente_id"], _ = strconv.Atoi(PreasignacionPut["Data"].(map[string]interface{})["docente_id"].(string))
-							EspacioAcademicoHijoPut["espacio_academico_padre"] = EspacioAcademicoHijo["Data"].(map[string]interface{})["espacio_academico_padre"].(map[string]interface{})["_id"].(string)
-							EspacioAcademicoHijoPut["estado_aprobacion_id"] = EspacioAcademicoHijo["Data"].(map[string]interface{})["estado_aprobacion_id"].(map[string]interface{})["_id"].(string)
+							if espacioAcademicoPadreID != "" {
+								EspacioAcademicoHijoPut["espacio_academico_padre"] = espacioAcademicoPadreID
+							}
+							if estadoAprobacionID != "" {
+								EspacioAcademicoHijoPut["estado_aprobacion_id"] = estadoAprobacionID
+							}
 						}
 						// Put al espacio academico hijo con el docente asignado cuando se aprueba la preasignacion
 						if errPutEspacio := request.SendJson(beego.AppConfig.String("EspaciosAcademicosService")+"espacio-academico/"+fmt.Sprintf("%v", PreasignacionPut["Data"].(map[string]interface{})["espacio_academico_id"]), "PUT", &EspacioPut, EspacioAcademicoHijoPut); errPutEspacio == nil {
@@ -184,11 +209,11 @@ func DefinePreasignacion(body map[string]interface{}) requestmanager.APIResponse
 
 						//------------------------------------------Finalización Actualización------------------------------------------------------
 					} else {
-						return requestmanager.APIResponseDTO(false, 404, nil, "No se encontraron registros para el docente")
+						logs.Warn("No fue posible actualizar espacio academico en aprobacion docente; Data ausente o invalido para preasignacion %v", preasignacion.(map[string]interface{})["Id"])
 					}
 				} else {
 					logs.Error(errEspacios)
-					return requestmanager.APIResponseDTO(false, 404, nil, "No se encontraron registros de espacios academicos hijos")
+					logs.Warn("No fue posible consultar espacio academico hijo para preasignacion %v", preasignacion.(map[string]interface{})["Id"])
 				}
 
 			}
