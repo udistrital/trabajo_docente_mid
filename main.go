@@ -1,13 +1,15 @@
 package main
 
 import (
+	"github.com/astaxie/beego"
+	"github.com/astaxie/beego/logs"
 	"github.com/astaxie/beego/plugins/cors"
 	_ "github.com/udistrital/trabajo_docente_mid/routers"
 	apistatus "github.com/udistrital/utils_oas/apiStatusLib"
 	"github.com/udistrital/utils_oas/auditoria"
+	"github.com/udistrital/utils_oas/customerrorv2"
+	"github.com/udistrital/utils_oas/security"
 	"github.com/udistrital/utils_oas/xray"
-
-	"github.com/astaxie/beego"
 )
 
 func main() {
@@ -16,27 +18,30 @@ func main() {
 		beego.BConfig.WebConfig.StaticDir["/swagger"] = "swagger"
 	}
 
+	allowedOrigins := []string{"*.udistrital.edu.co"}
 	beego.InsertFilter("*", beego.BeforeRouter, cors.Allow(&cors.Options{
-		AllowOrigins: []string{"*"},
-		AllowMethods: []string{"PUT", "PATCH", "GET", "POST", "OPTIONS", "DELETE"},
-		AllowHeaders: []string{"Origin", "x-requested-with",
+		AllowOrigins: allowedOrigins,
+		AllowMethods: []string{"DELETE", "GET", "OPTIONS", "PATCH", "POST", "PUT"},
+		AllowHeaders: []string{
+			"Origin",
+			"x-requested-with",
 			"content-type",
 			"accept",
 			"origin",
 			"authorization",
-			"x-csrftoken"},
+			"x-csrftoken",
+			"pragma",
+			"cache-control"},
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
 	}))
-
-	/*logPath := "{\"filename\":\""
-	logPath += beego.AppConfig.String("logPath")
-	logPath += "\"}"
-	logs.SetLogger(logs.AdapterFile, logPath)*/
-
-	// notificacionlib.InitMiddleware()
-	xray.InitXRay()
+	err := xray.InitXRay()
+	if err != nil {
+		logs.Error("error configurando AWS XRay: %v", err)
+	}
 	apistatus.Init()
 	auditoria.InitMiddleware()
+	beego.ErrorController(&customerrorv2.CustomErrorController{})
+	security.SetSecurityHeaders()
 	beego.Run()
 }

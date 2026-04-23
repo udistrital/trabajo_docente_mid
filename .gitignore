@@ -17,8 +17,5 @@ swagger/lang/
 swagger/lib/
 swagger.zip
 sga_plan_trabajo_docente_mid.exe
-sga_trabajo_docente_mid.exe
-go.mod
-go.sum
-
+sga_trabajo_docente_mid.exe*
 .env
