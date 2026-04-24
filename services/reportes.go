@@ -50,7 +50,7 @@ func obtenerInformacionRequeridaRepCargaLectiva(docente, vinculacion, periodo in
 		fmt.Sprintf("datos_identificacion?query=Activo:true,TerceroId__Id:%d&fields=TerceroId,Numero,TipoDocumentoId&sortby=FechaExpedicion,Id&order=desc&limit=1", docente), requestmanager.ParseResonseNoFormat)
 	if err != nil {
 		logs.Error(err)
-		return infoRequeridaRepCL{}, fmt.Errorf("TercerosService (datos_identificacion): " + err.Error())
+		return infoRequeridaRepCL{}, fmt.Errorf("TercerosService (datos_identificacion): %w", err)
 	}
 	datoIdenfTercero := models.DatosIdentificacion{}
 	utils.ParseData(resp.([]interface{})[0], &datoIdenfTercero)
@@ -58,7 +58,7 @@ func obtenerInformacionRequeridaRepCargaLectiva(docente, vinculacion, periodo in
 	resp, err = requestmanager.Get(beego.AppConfig.String("ParametroService")+fmt.Sprintf("parametro/%d", vinculacion), requestmanager.ParseResponseFormato1)
 	if err != nil {
 		logs.Error(err)
-		return infoRequeridaRepCL{}, fmt.Errorf("ParametroService (parametro): " + err.Error())
+		return infoRequeridaRepCL{}, fmt.Errorf("ParametroService (parametro): %w", err)
 	}
 	datoVinculacion := models.Parametro{}
 	utils.ParseData(resp, &datoVinculacion)
@@ -66,7 +66,7 @@ func obtenerInformacionRequeridaRepCargaLectiva(docente, vinculacion, periodo in
 	resp, err = requestmanager.Get(beego.AppConfig.String("ParametroService")+fmt.Sprintf("periodo/%d", periodo), requestmanager.ParseResponseFormato1)
 	if err != nil {
 		logs.Error(err)
-		return infoRequeridaRepCL{}, fmt.Errorf("ParametroService (periodo): " + err.Error())
+		return infoRequeridaRepCL{}, fmt.Errorf("ParametroService (periodo): %w", err)
 	}
 	datoPeriodo := models.Periodo{}
 	utils.ParseData(resp, &datoPeriodo)
@@ -75,7 +75,7 @@ func obtenerInformacionRequeridaRepCargaLectiva(docente, vinculacion, periodo in
 		fmt.Sprintf("plan_docente?query=activo:true,docente_id:%d,tipo_vinculacion_id:%d,periodo_id:%d&limit=1", docente, vinculacion, periodo), requestmanager.ParseResponseFormato1)
 	if err != nil {
 		logs.Error(err)
-		return infoRequeridaRepCL{}, fmt.Errorf("PlanTrabajoDocenteService (plan_docente): " + err.Error())
+		return infoRequeridaRepCL{}, fmt.Errorf("PlanTrabajoDocenteService (plan_docente): %w", err)
 	}
 	datoPlanDocente := models.PlanDocente{}
 	utils.ParseData(resp.([]interface{})[0], &datoPlanDocente)
@@ -87,7 +87,7 @@ func obtenerInformacionRequeridaRepCargaLectiva(docente, vinculacion, periodo in
 		fmt.Sprintf("carga_plan?query=activo:true,plan_docente_id:%s,&limit=0", datoPlanDocente.Id), requestmanager.ParseResponseFormato1)
 	if err != nil {
 		logs.Error(err)
-		return infoRequeridaRepCL{}, fmt.Errorf("PlanTrabajoDocenteService (carga_plan): " + err.Error())
+		return infoRequeridaRepCL{}, fmt.Errorf("PlanTrabajoDocenteService (carga_plan): %w", err)
 	}
 	datosCargaPlan := []models.CargaPlan{}
 	utils.ParseData(resp, &datosCargaPlan)
@@ -98,7 +98,7 @@ func obtenerInformacionRequeridaRepCargaLectiva(docente, vinculacion, periodo in
 
 		if err != nil {
 			logs.Error(err)
-			return infoRequeridaRepCL{}, fmt.Errorf("HorarioService (colocacion_espacio_academico): " + err.Error())
+			return infoRequeridaRepCL{}, fmt.Errorf("HorarioService (colocacion_espacio_academico): %w", err)
 		}
 
 		resumenColocacion := models.ResumenColocacion{}
@@ -425,7 +425,7 @@ func obtenerInformacionRequeridaRepCumplimiento(vigencia int64, proyectoFilter s
 		fmt.Sprintf("plan_docente?query=activo:true,estado_plan_id:%s,periodo_id:%d&limit=0", plan_aprobado, vigencia), requestmanager.ParseResponseFormato1)
 	if err != nil {
 		logs.Error(err)
-		return infoRequeridaCumplimiento{}, fmt.Errorf("PlanTrabajoDocenteService (plan_docente): " + err.Error())
+		return infoRequeridaCumplimiento{}, fmt.Errorf("PlanTrabajoDocenteService (plan_docente): %w", err)
 		/* badAns, code := requestmanager.MidResponseFormat("PlanTrabajoDocenteService (plan_docente)", "GET", false, map[string]interface{}{
 			"response": resp,
 			"error":    err.Error(),
@@ -443,7 +443,7 @@ func obtenerInformacionRequeridaRepCumplimiento(vigencia int64, proyectoFilter s
 			fmt.Sprintf("carga_plan?query=activo:true,plan_docente_id:%s&limit=0", plan_docente.Id), requestmanager.ParseResponseFormato1)
 		if err != nil {
 			logs.Error(err)
-			return infoRequeridaCumplimiento{}, fmt.Errorf("PlanTrabajoDocenteService (carga_plan): " + err.Error())
+			return infoRequeridaCumplimiento{}, fmt.Errorf("PlanTrabajoDocenteService (carga_plan): %w", err)
 			/* badAns, code := requestmanager.MidResponseFormat("PlanTrabajoDocenteService (carga_plan)", "GET", false, map[string]interface{}{
 				"response": resp,
 				"error":    err.Error(),
@@ -471,7 +471,7 @@ func obtenerInformacionRequeridaRepCumplimiento(vigencia int64, proyectoFilter s
 				fmt.Sprintf("espacio-academico?query=_id:%s", idEspAcad), requestmanager.ParseResponseFormato1)
 			if err != nil {
 				logs.Error(err)
-				return infoRequeridaCumplimiento{}, fmt.Errorf("EspaciosAcademicosService (espacio-academico): " + err.Error())
+				return infoRequeridaCumplimiento{}, fmt.Errorf("EspaciosAcademicosService (espacio-academico): %w", err)
 				/* badAns, code := requestmanager.MidResponseFormat("EspaciosAcademicosService (espacio-academico)", "GET", false, map[string]interface{}{
 					"response": resp,
 					"error":    err.Error(),
@@ -492,7 +492,7 @@ func obtenerInformacionRequeridaRepCumplimiento(vigencia int64, proyectoFilter s
 					fmt.Sprintf("proyecto_academico_institucion/%s", projectId), requestmanager.ParseResonseNoFormat)
 				if err != nil {
 					logs.Error(err)
-					return infoRequeridaCumplimiento{}, fmt.Errorf("ProyectoAcademicoService (proyecto_academico_institucion): " + err.Error())
+					return infoRequeridaCumplimiento{}, fmt.Errorf("ProyectoAcademicoService (proyecto_academico_institucion): %w", err)
 					/* badAns, code := requestmanager.MidResponseFormat("ProyectoAcademicoService (proyecto_academico_institucion)", "GET", false, map[string]interface{}{
 						"response": resp,
 						"error":    err.Error(),
@@ -568,7 +568,7 @@ func obtenerInformacionRequeridaRepCumplimiento(vigencia int64, proyectoFilter s
 				plan_docente.Docente_id), requestmanager.ParseResonseNoFormat)
 		if err != nil {
 			logs.Error(err)
-			return infoRequeridaCumplimiento{}, fmt.Errorf("TercerosService (datos_identificacion): " + err.Error())
+			return infoRequeridaCumplimiento{}, fmt.Errorf("TercerosService (datos_identificacion): %w", err)
 			/* badAns, code := requestmanager.MidResponseFormat("TercerosService (datos_identificacion)", "GET", false, map[string]interface{}{
 				"response": resp,
 				"error":    err.Error(),
@@ -585,7 +585,7 @@ func obtenerInformacionRequeridaRepCumplimiento(vigencia int64, proyectoFilter s
 			fmt.Sprintf("parametro/%s", plan_docente.Tipo_vinculacion_id), requestmanager.ParseResponseFormato1)
 		if err != nil {
 			logs.Error(err)
-			return infoRequeridaCumplimiento{}, fmt.Errorf("ParametroService (parametro): " + err.Error())
+			return infoRequeridaCumplimiento{}, fmt.Errorf("ParametroService (parametro): %w", err)
 			/* badAns, code := requestmanager.MidResponseFormat("ParametroService (parametro)", "GET", false, map[string]interface{}{
 				"response": resp,
 				"error":    err.Error(),
