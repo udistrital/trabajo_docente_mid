@@ -7,6 +7,7 @@ import (
 
 	"github.com/astaxie/beego"
 	"github.com/astaxie/beego/logs"
+	"github.com/udistrital/trabajo_docente_mid/models"
 	"github.com/udistrital/trabajo_docente_mid/utils"
 	request "github.com/udistrital/utils_oas/request"
 	requestmanager "github.com/udistrital/utils_oas/requestresponse"
@@ -175,6 +176,145 @@ func ListaAsignacionDocente(docente, vigencia string) requestmanager.APIResponse
 		/* c.Ctx.Output.SetStatus(404)
 		c.Data["json"] = map[string]interface{}{"Success": false, "Status": "404", "Message": "No se encontraron registros de preasignaciones"} */
 	}
+}
+
+// EnviarAsignacionCoordinador recalcula el PTD desde las cargas actuales y deja el plan en ENV_DOC.
+func EnviarAsignacionCoordinador(body map[string]interface{}) requestmanager.APIResponse {
+	planDocenteID := fmt.Sprintf("%v", body["plan_docente_id"])
+	if strings.TrimSpace(planDocenteID) == "" {
+		return requestmanager.APIResponseDTO(false, 400, nil, "Error: Parámetro plan_docente_id inválido")
+	}
+
+	var planDocenteResp map[string]interface{}
+	if errPlan := request.GetJson(beego.AppConfig.String("PlanTrabajoDocenteService")+"plan_docente/"+planDocenteID, &planDocenteResp); errPlan != nil {
+		logs.Error(errPlan)
+		return requestmanager.APIResponseDTO(false, 404, nil, "No se pudo consultar el plan docente")
+	}
+	if ok, _ := planDocenteResp["Success"].(bool); !ok {
+		return requestmanager.APIResponseDTO(false, 404, nil, "No se pudo consultar el plan docente")
+	}
+
+	planDocenteData, ok := planDocenteResp["Data"].(map[string]interface{})
+	if !ok || planDocenteData == nil {
+		return requestmanager.APIResponseDTO(false, 404, nil, "No se pudo consultar el plan docente")
+	}
+
+	var estadoEnvDoc map[string]interface{}
+	if errEstado := request.GetJson(beego.AppConfig.String("PlanTrabajoDocenteService")+"estado_plan?query=codigo_abreviacion:ENV_DOC", &estadoEnvDoc); errEstado != nil {
+		logs.Error(errEstado)
+		return requestmanager.APIResponseDTO(false, 404, nil, "No se pudo consultar el estado ENV_DOC")
+	}
+
+	estadoID := ""
+	if dataEstado, ok := estadoEnvDoc["Data"].([]interface{}); ok && len(dataEstado) > 0 {
+		estadoID = fmt.Sprintf("%v", dataEstado[0].(map[string]interface{})["_id"])
+	}
+	if strings.TrimSpace(estadoID) == "" {
+		return requestmanager.APIResponseDTO(false, 404, nil, "No se pudo resolver el estado ENV_DOC")
+	}
+
+	var resPreasignaciones map[string]interface{}
+	if errPre := request.GetJson(beego.AppConfig.String("PlanTrabajoDocenteService")+"pre_asignacion?query=activo:true,aprobacion_docente:true,aprobacion_proyecto:true,plan_docente_id:"+planDocenteID+"&fields=espacio_academico_id", &resPreasignaciones); errPre != nil {
+		logs.Error(errPre)
+		return requestmanager.APIResponseDTO(false, 404, nil, "No se pudieron consultar las preasignaciones aprobadas")
+	}
+
+	preasignaciones := []models.PreAsignacion{}
+	if data, ok := resPreasignaciones["Data"]; ok {
+		utils.ParseData(data, &preasignaciones)
+	}
+	preasignadas := map[string]struct{}{}
+	for _, preasignacion := range preasignaciones {
+		preasignadas[preasignacion.Espacio_academico_id] = struct{}{}
+	}
+
+	var resCargas map[string]interface{}
+	if errCargas := request.GetJson(beego.AppConfig.String("PlanTrabajoDocenteService")+"carga_plan?query=activo:true,plan_docente_id:"+planDocenteID+"&limit=0", &resCargas); errCargas != nil {
+		logs.Error(errCargas)
+		return requestmanager.APIResponseDTO(false, 404, nil, "No se pudieron consultar las cargas del plan docente")
+	}
+
+	cargas := []models.CargaPlan{}
+	if data, ok := resCargas["Data"]; ok {
+		utils.ParseData(data, &cargas)
+	}
+
+	cargaPlan := []interface{}{}
+	descartar := []interface{}{}
+
+	for _, carga := range cargas {
+		if _, ok := preasignadas[carga.Espacio_academico_id]; !ok {
+			descartar = append(descartar, map[string]interface{}{"id": carga.Id})
+			continue
+		}
+
+		cargaConvertida, err := convertirCargaPlanParaDefinePTD(carga)
+		if err != nil {
+			logs.Error(err)
+			return requestmanager.APIResponseDTO(false, 500, nil, err.Error())
+		}
+		cargaPlan = append(cargaPlan, cargaConvertida)
+	}
+
+	bodyDefine := map[string]interface{}{
+		"carga_plan": cargaPlan,
+		"plan_docente": map[string]interface{}{
+			"id":                  planDocenteID,
+			"estado_plan":         estadoID,
+			"docente_id":          planDocenteData["docente_id"],
+			"periodo_id":          planDocenteData["periodo_id"],
+			"tipo_vinculacion_id": planDocenteData["tipo_vinculacion_id"],
+		},
+		"descartar": descartar,
+	}
+
+	return DefinePTD(bodyDefine)
+}
+
+func convertirCargaPlanParaDefinePTD(carga models.CargaPlan) (map[string]interface{}, error) {
+	item := map[string]interface{}{
+		"id":                   carga.Id,
+		"espacio_academico_id": carga.Espacio_academico_id,
+		"actividad_id":         carga.Actividad_id,
+		"plan_docente_id":      carga.Plan_docente_id,
+		"hora_inicio":          carga.Hora_inicio,
+		"duracion":             carga.Duracion,
+		"salon_id":             carga.Salon_id,
+		"sede_id":              carga.Sede_id,
+		"edificio_id":          carga.Edificio_id,
+		"activo":               carga.Activo,
+	}
+
+	if strings.TrimSpace(carga.Colocacion_espacio_academico_id) != "" {
+		colocacion, existe := obtenerColocacionHoraria(carga.Colocacion_espacio_academico_id)
+		if existe && colocacion != nil {
+			if horario, ok := colocacion["ColocacionEspacioAcademico"]; ok {
+				var horarioJSON interface{}
+				if err := json.Unmarshal([]byte(fmt.Sprintf("%v", horario)), &horarioJSON); err == nil {
+					item["horario"] = horarioJSON
+				}
+			}
+			if resumen, ok := colocacion["ResumenColocacionEspacioFisico"].(string); ok {
+				var resumenJSON map[string]interface{}
+				if err := json.Unmarshal([]byte(resumen), &resumenJSON); err == nil {
+					if espacioFisico, ok := resumenJSON["espacio_fisico"].(map[string]interface{}); ok {
+						item["sede_id"] = fmt.Sprintf("%v", espacioFisico["sede_id"])
+						item["edificio_id"] = fmt.Sprintf("%v", espacioFisico["edificio_id"])
+						item["salon_id"] = fmt.Sprintf("%v", espacioFisico["salon_id"])
+					}
+				}
+			}
+		}
+	}
+
+	if _, ok := item["horario"]; !ok {
+		item["horario"] = map[string]interface{}{
+			"hora_inicio": carga.Hora_inicio,
+			"duracion":    carga.Duracion,
+		}
+	}
+
+	return item, nil
 }
 
 // verificarSiTieneObservaciones verifica si el campo de observaciones tiene contenido

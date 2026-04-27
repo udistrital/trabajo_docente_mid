@@ -253,6 +253,81 @@ func parseBool(value string) bool {
 	return normalized == "true" || normalized == "1"
 }
 
+func resolverEspacioFisicoOikos(id string, cache map[string]map[string]interface{}) map[string]interface{} {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return map[string]interface{}{"Id": "", "Nombre": "", "CodigoAbreviacion": ""}
+	}
+
+	if cache != nil {
+		if value, ok := cache[id]; ok {
+			return value
+		}
+	}
+
+	response := map[string]interface{}{
+		"Id":                id,
+		"Nombre":            id,
+		"CodigoAbreviacion": id,
+	}
+
+	parseItem := func(oikosResp interface{}) map[string]interface{} {
+		var item map[string]interface{}
+
+		switch typed := oikosResp.(type) {
+		case []interface{}:
+			if len(typed) > 0 {
+				if data, ok := typed[0].(map[string]interface{}); ok {
+					item = data
+				}
+			}
+		case map[string]interface{}:
+			if data, ok := typed["Data"]; ok {
+				switch values := data.(type) {
+				case []interface{}:
+					if len(values) > 0 {
+						if dataMap, ok := values[0].(map[string]interface{}); ok {
+							item = dataMap
+						}
+					}
+				case map[string]interface{}:
+					item = values
+				}
+			}
+		}
+
+		return item
+	}
+
+	queryCandidates := []string{
+		"Id:" + id,
+		"CodigoAbreviacion:" + id,
+	}
+
+	for _, query := range queryCandidates {
+		url := beego.AppConfig.String("OikosService") +
+			"espacio_fisico?query=" + query + "&fields=Id,Nombre,CodigoAbreviacion&limit=1"
+
+		var oikosResp interface{}
+		if err := request.GetJson(url, &oikosResp); err == nil {
+			if item := parseItem(oikosResp); item != nil {
+				response = map[string]interface{}{
+					"Id":                fmt.Sprintf("%v", item["Id"]),
+					"Nombre":            fmt.Sprintf("%v", item["Nombre"]),
+					"CodigoAbreviacion": fmt.Sprintf("%v", item["CodigoAbreviacion"]),
+				}
+				break
+			}
+		}
+	}
+
+	if cache != nil {
+		cache[id] = response
+	}
+
+	return response
+}
+
 // InformacionHorarios consulta el endpoint de academica y transforma la respuesta
 // al formato requerido por colocacion-espacio-academico para el cliente.
 func InformacionHorarios(anio, periodo, asignaturaID, grupoID string) requestmanager.APIResponse {
@@ -266,6 +341,7 @@ func InformacionHorarios(anio, periodo, asignaturaID, grupoID string) requestman
 	}
 
 	response := make([]map[string]interface{}, 0, len(responseXML.Horarios))
+	espaciosFisicosCache := map[string]map[string]interface{}{}
 	for _, horario := range responseXML.Horarios {
 		if !parseBool(horario.ActivoHorario) || !parseBool(horario.ActivoEspacioAcademico) {
 			continue
@@ -301,25 +377,19 @@ func InformacionHorarios(anio, periodo, asignaturaID, grupoID string) requestman
 			"tipo": 1,
 		}
 
+		sede := resolverEspacioFisicoOikos(horario.IdSede, espaciosFisicosCache)
+		edificio := resolverEspacioFisicoOikos(horario.IdEdificio, espaciosFisicosCache)
+		salon := resolverEspacioFisicoOikos(horario.IdSalon, espaciosFisicosCache)
+
 		resumenColocacion := map[string]interface{}{
 			"colocacion": colocacion,
 			"espacio_fisico": map[string]interface{}{
 				"edificio_id": horario.IdEdificio,
 				"salon_id":    horario.IdSalon,
 				"sede_id":     horario.IdSede,
-				"sede": map[string]interface{}{
-					"Id":                horario.IdSede,
-					"CodigoAbreviacion": horario.IdSede,
-					"Nombre":            horario.IdSede,
-				},
-				"edificio": map[string]interface{}{
-					"Id":     horario.IdEdificio,
-					"Nombre": horario.IdEdificio,
-				},
-				"salon": map[string]interface{}{
-					"Id":     horario.IdSalon,
-					"Nombre": horario.IdSalon,
-				},
+				"sede":        sede,
+				"edificio":    edificio,
+				"salon":       salon,
 			},
 		}
 
@@ -334,7 +404,7 @@ func InformacionHorarios(anio, periodo, asignaturaID, grupoID string) requestman
 		response = append(response, map[string]interface{}{
 			"_id":                            horario.IdHorario,
 			"EspacioAcademicoId":             horario.IdEspacioAcademico,
-			"EspacioFisicoId":                horario.IdEspacioFisico,
+			"EspacioFisicoId":                "",
 			"ColocacionEspacioAcademico":     colocacion,
 			"ResumenColocacionEspacioFisico": resumenColocacion,
 			"Periodo":                        horario.Periodo,
