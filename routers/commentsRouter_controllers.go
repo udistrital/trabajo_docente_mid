@@ -25,6 +25,15 @@ func init() {
 			Filters:          nil,
 			Params:           nil})
 
+	beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:AsignacionController"] = append(beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:AsignacionController"],
+		beego.ControllerComments{
+			Method:           "EnviarAsignacion",
+			Router:           "/enviar",
+			AllowHTTPMethods: []string{"put"},
+			MethodParams:     param.Make(),
+			Filters:          nil,
+			Params:           nil})
+
 	beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:DocenteController"] = append(beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:DocenteController"],
 		beego.ControllerComments{
 			Method:           "DocumentoDocenteVinculacion",
