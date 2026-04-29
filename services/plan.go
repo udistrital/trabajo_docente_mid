@@ -447,7 +447,7 @@ func consultarDetallePlan(planes []interface{}, idVinculacion int64) map[string]
 			for _, preasignacion := range resPreasignacion["Data"].([]interface{}) {
 				var responseXML informacionCursoXML
 				if memEspaciosDetalle[preasignacion.(map[string]interface{})["espacio_academico_id"].(string)] == nil {
-					url := "http://" + beego.AppConfig.String("AcademicaEspacioAcademicoService") + "informacion_curso/" + preasignacion.(map[string]interface{})["espacio_academico_id"].(string)
+					url := beego.AppConfig.String("AcademicaEspacioAcademicoService") + "informacion_curso/" + preasignacion.(map[string]interface{})["espacio_academico_id"].(string)
 					if errEspacioAcademico := request.GetXml(url, &responseXML); errEspacioAcademico == nil {
 						detalle := responseXML.Detalle
 						if strings.TrimSpace(detalle.Id) != "" {

@@ -1,8 +1,6 @@
 package controllers
 
 import (
-	"encoding/json"
-
 	"github.com/astaxie/beego"
 	"github.com/astaxie/beego/logs"
 	"github.com/udistrital/trabajo_docente_mid/services"
@@ -19,7 +17,6 @@ type AsignacionController struct {
 func (c *AsignacionController) URLMapping() {
 	c.Mapping("Asignacion", c.Asignacion)
 	c.Mapping("AsignacionDocente", c.AsignacionDocente)
-	c.Mapping("EnviarAsignacion", c.EnviarAsignacion)
 }
 
 // Asignacion ...
@@ -68,41 +65,6 @@ func (c *AsignacionController) AsignacionDocente() {
 		c.Data["json"] = resultado
 		c.Ctx.Output.SetStatus(resultado.Status)
 	}
-
-	c.ServeJSON()
-}
-
-// EnviarAsignacion ...
-// @Title EnviarAsignacion
-// @Description Recalcula y envía el PTD del coordinador a estado ENV_DOC usando las preasignaciones aprobadas
-// @Param   body        body    {}  true        "body con plan_docente_id"
-// @Success 200 {}
-// @Failure 400 the request contains an incorrect parameter or no record exist
-// @router /enviar [put]
-func (c *AsignacionController) EnviarAsignacion() {
-	defer errorhandler.HandlePanic(&c.Controller)
-
-	var body map[string]interface{}
-	err := json.Unmarshal(c.Ctx.Input.RequestBody, &body)
-	if err != nil {
-		logs.Error(err)
-		c.Data["json"] = requestmanager.APIResponseDTO(false, 400, nil, "Error: Parámetro(s) no válido(s) o faltante(s)")
-		c.Ctx.Output.SetStatus(400)
-		c.ServeJSON()
-		return
-	}
-
-	if _, ok := body["plan_docente_id"]; !ok {
-		logs.Error("No existe el parametro plan_docente_id")
-		c.Data["json"] = requestmanager.APIResponseDTO(false, 400, nil, "Error: Parámetro(s) no válido(s) o faltante(s)")
-		c.Ctx.Output.SetStatus(400)
-		c.ServeJSON()
-		return
-	}
-
-	resultado := services.EnviarAsignacionCoordinador(body)
-	c.Data["json"] = resultado
-	c.Ctx.Output.SetStatus(resultado.Status)
 
 	c.ServeJSON()
 }
