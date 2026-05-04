@@ -117,7 +117,7 @@ func consultarDetallePreasignacion(preasignaciones []interface{}) []map[string]i
 func ListaPreasignacionDocente(docente, vigencia string) requestmanager.APIResponse {
 	var resPreasignaciones map[string]interface{}
 
-	if errPreasignacion := request.GetJson(beego.AppConfig.String("PlanTrabajoDocenteService")+"pre_asignacion?query=aprobacion_proyecto:true,activo:true,periodo_id:"+vigencia+",docente_id:"+docente, &resPreasignaciones); errPreasignacion == nil {
+	if errPreasignacion := request.GetJson(beego.AppConfig.String("PlanTrabajoDocenteService")+"pre_asignacion?query=activo:true,periodo_id:"+vigencia+",docente_id:"+docente, &resPreasignaciones); errPreasignacion == nil {
 		if fmt.Sprintf("%v", resPreasignaciones["Data"]) != "[]" {
 			response := consultarDetallePreasignacion(resPreasignaciones["Data"].([]interface{}))
 
@@ -229,6 +229,12 @@ func DefinePreasignacion(body map[string]interface{}) requestmanager.APIResponse
 							preasignacionPut = map[string]interface{}{"plan_docente_id": idPlanDocente}
 
 							if errAprobacion := request.SendJson(beego.AppConfig.String("PlanTrabajoDocenteService")+"pre_asignacion/"+fmt.Sprintf("%v", preasignacion.(map[string]interface{})["Id"]), "PUT", &PreasignacionPut, preasignacionPut); errAprobacion == nil {
+								// Intentar actualizar el estado del plan docente a DEF (definido)
+								if idPlanDocente != "" {
+									if _, errCambio := helpers.CambiarEstadoDePlanDocente(idPlanDocente, "DEF"); errCambio != nil {
+										logs.Warn("No fue posible cambiar estado a DEF para plan_docente %s: %v", idPlanDocente, errCambio)
+									}
+								}
 								resultado = append(resultado, map[string]interface{}{"Id": PreasignacionPut["Data"].(map[string]interface{})["_id"], "actualizado": true, "plan_trabajo": true})
 							}
 						} else {
@@ -246,6 +252,12 @@ func DefinePreasignacion(body map[string]interface{}) requestmanager.APIResponse
 								preasignacionPut = map[string]interface{}{"plan_docente_id": idPlanDocente}
 
 								if errAprobacion := request.SendJson(beego.AppConfig.String("PlanTrabajoDocenteService")+"pre_asignacion/"+fmt.Sprintf("%v", preasignacion.(map[string]interface{})["Id"]), "PUT", &PreasignacionPut, preasignacionPut); errAprobacion == nil {
+									// Intentar actualizar el estado del plan docente a DEF (definido)
+									if idPlanDocente != "" {
+										if _, errCambio := helpers.CambiarEstadoDePlanDocente(idPlanDocente, "DEF"); errCambio != nil {
+											logs.Warn("No fue posible cambiar estado a DEF para plan_docente %s: %v", idPlanDocente, errCambio)
+										}
+									}
 									resultado = append(resultado, map[string]interface{}{"Id": PreasignacionPut["Data"].(map[string]interface{})["_id"], "actualizado": true, "plan_trabajo": true})
 								}
 							}
@@ -253,6 +265,12 @@ func DefinePreasignacion(body map[string]interface{}) requestmanager.APIResponse
 					}
 				}
 			} else {
+				// Si ya tiene plan_docente_id, asegurarse de marcar el estado a DEF
+				if planId, ok := PreasignacionPut["Data"].(map[string]interface{})["plan_docente_id"].(string); ok && planId != "" {
+					if _, errCambio := helpers.CambiarEstadoDePlanDocente(planId, "DEF"); errCambio != nil {
+						logs.Warn("No fue posible cambiar estado a DEF para plan_docente %s: %v", planId, errCambio)
+					}
+				}
 				resultado = append(resultado, map[string]interface{}{"Id": PreasignacionPut["Data"].(map[string]interface{})["_id"], "actualizado": true})
 			}
 		} else {
