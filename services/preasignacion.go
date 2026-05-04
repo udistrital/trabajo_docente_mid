@@ -72,11 +72,12 @@ func consultarDetallePreasignacion(preasignaciones []interface{}) []map[string]i
 			if cursoDetalle.Success && cursoDetalle.Data != nil {
 				cursoData := cursoDetalle.Data.(map[string]interface{})
 				memEspacios[preasignacion.(map[string]interface{})["espacio_academico_id"].(string)] = map[string]interface{}{
-					"espacio_academico": cursoData["EspacioAcademico"].(string),
-					"grupo":             cursoData["grupo"].(string),
-					"codigo":            cursoData["CodigoEspacioAcademico"].(string),
-					"proyecto":          cursoData["ProyectoAcademico"].(string),
-					"nivel":             cursoData["Nivel"].(string),
+					"espacio_academico":         cursoData["EspacioAcademico"].(string),
+					"grupo":                     cursoData["grupo"].(string),
+					"codigo":                    cursoData["CodigoEspacioAcademico"].(string),
+					"proyecto":                  cursoData["ProyectoAcademico"].(string),
+					"codigo_proyecto_academico": cursoData["CodigoProyectoAcademico"].(string),
+					"nivel":                     cursoData["Nivel"].(string),
 				}
 			}
 		}
@@ -88,24 +89,25 @@ func consultarDetallePreasignacion(preasignaciones []interface{}) []map[string]i
 		}
 
 		response = append(response, map[string]interface{}{
-			"id":                      preasignacion.(map[string]interface{})["_id"],
-			"docente_id":              preasignacion.(map[string]interface{})["docente_id"].(string),
-			"docente":                 utils.Capitalize(memDocente[preasignacion.(map[string]interface{})["docente_id"].(string)].(map[string]interface{})["NombreCompleto"].(string)),
-			"tipo_vinculacion_id":     preasignacion.(map[string]interface{})["tipo_vinculacion_id"].(string),
-			"espacio_academico":       memEspacios[preasignacion.(map[string]interface{})["espacio_academico_id"].(string)].(map[string]interface{})["espacio_academico"],
-			"espacio_academico_id":    preasignacion.(map[string]interface{})["espacio_academico_id"].(string),
-			"espacio_academico_padre": memEspacios[preasignacion.(map[string]interface{})["espacio_academico_id"].(string)].(map[string]interface{})["codigo"],
-			"grupo":                   memEspacios[preasignacion.(map[string]interface{})["espacio_academico_id"].(string)].(map[string]interface{})["grupo"],
-			"proyecto":                memEspacios[preasignacion.(map[string]interface{})["espacio_academico_id"].(string)].(map[string]interface{})["proyecto"],
-			"nivel":                   memEspacios[preasignacion.(map[string]interface{})["espacio_academico_id"].(string)].(map[string]interface{})["nivel"],
-			"codigo":                  memEspacios[preasignacion.(map[string]interface{})["espacio_academico_id"].(string)].(map[string]interface{})["codigo"],
-			"periodo":                 memPeriodo[preasignacion.(map[string]interface{})["periodo_id"].(string)],
-			"periodo_id":              preasignacion.(map[string]interface{})["periodo_id"].(string),
-			"aprobacion_docente":      map[string]interface{}{"value": preasignacion.(map[string]interface{})["aprobacion_docente"].(bool), "disabled": false},
-			"aprobacion_proyecto":     map[string]interface{}{"value": preasignacion.(map[string]interface{})["aprobacion_proyecto"].(bool), "disabled": false},
-			"editar":                  map[string]interface{}{"value": nil, "type": "editar", "disabled": false},
-			"enviar":                  map[string]interface{}{"value": nil, "type": "enviar", "disabled": preasignacion.(map[string]interface{})["aprobacion_proyecto"].(bool)},
-			"borrar":                  map[string]interface{}{"value": nil, "type": "borrar", "disabled": false},
+			"id":                        preasignacion.(map[string]interface{})["_id"],
+			"docente_id":                preasignacion.(map[string]interface{})["docente_id"].(string),
+			"docente":                   utils.Capitalize(memDocente[preasignacion.(map[string]interface{})["docente_id"].(string)].(map[string]interface{})["NombreCompleto"].(string)),
+			"tipo_vinculacion_id":       preasignacion.(map[string]interface{})["tipo_vinculacion_id"].(string),
+			"espacio_academico":         memEspacios[preasignacion.(map[string]interface{})["espacio_academico_id"].(string)].(map[string]interface{})["espacio_academico"],
+			"espacio_academico_id":      preasignacion.(map[string]interface{})["espacio_academico_id"].(string),
+			"espacio_academico_padre":   memEspacios[preasignacion.(map[string]interface{})["espacio_academico_id"].(string)].(map[string]interface{})["codigo"],
+			"grupo":                     memEspacios[preasignacion.(map[string]interface{})["espacio_academico_id"].(string)].(map[string]interface{})["grupo"],
+			"proyecto":                  memEspacios[preasignacion.(map[string]interface{})["espacio_academico_id"].(string)].(map[string]interface{})["proyecto"],
+			"codigo_proyecto_academico": memEspacios[preasignacion.(map[string]interface{})["espacio_academico_id"].(string)].(map[string]interface{})["codigo_proyecto_academico"],
+			"nivel":                     memEspacios[preasignacion.(map[string]interface{})["espacio_academico_id"].(string)].(map[string]interface{})["nivel"],
+			"codigo":                    memEspacios[preasignacion.(map[string]interface{})["espacio_academico_id"].(string)].(map[string]interface{})["codigo"],
+			"periodo":                   memPeriodo[preasignacion.(map[string]interface{})["periodo_id"].(string)],
+			"periodo_id":                preasignacion.(map[string]interface{})["periodo_id"].(string),
+			"aprobacion_docente":        map[string]interface{}{"value": preasignacion.(map[string]interface{})["aprobacion_docente"].(bool), "disabled": false},
+			"aprobacion_proyecto":       map[string]interface{}{"value": preasignacion.(map[string]interface{})["aprobacion_proyecto"].(bool), "disabled": false},
+			"editar":                    map[string]interface{}{"value": nil, "type": "editar", "disabled": false},
+			"enviar":                    map[string]interface{}{"value": nil, "type": "enviar", "disabled": preasignacion.(map[string]interface{})["aprobacion_proyecto"].(bool)},
+			"borrar":                    map[string]interface{}{"value": nil, "type": "borrar", "disabled": false},
 		})
 	}
 	return response
@@ -115,7 +117,7 @@ func consultarDetallePreasignacion(preasignaciones []interface{}) []map[string]i
 func ListaPreasignacionDocente(docente, vigencia string) requestmanager.APIResponse {
 	var resPreasignaciones map[string]interface{}
 
-	if errPreasignacion := request.GetJson(beego.AppConfig.String("PlanTrabajoDocenteService")+"pre_asignacion?query=aprobacion_proyecto:true,activo:true,periodo_id:"+vigencia+",docente_id:"+docente, &resPreasignaciones); errPreasignacion == nil {
+	if errPreasignacion := request.GetJson(beego.AppConfig.String("PlanTrabajoDocenteService")+"pre_asignacion?query=activo:true,periodo_id:"+vigencia+",docente_id:"+docente, &resPreasignaciones); errPreasignacion == nil {
 		if fmt.Sprintf("%v", resPreasignaciones["Data"]) != "[]" {
 			response := consultarDetallePreasignacion(resPreasignaciones["Data"].([]interface{}))
 

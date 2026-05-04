@@ -16,17 +16,19 @@ type PlanDocente struct {
 }
 
 type PreAsignacion struct {
-	Id                   string `json:"_id,omitempty"`
-	Docente_id           string `json:"docente_id,omitempty"`
-	Tipo_vinculacion_id  string `json:"tipo_vinculacion_id,omitempty"`
-	Espacio_academico_id string `json:"espacio_academico_id,omitempty"`
-	Periodo_id           string `json:"periodo_id,omitempty"`
-	Aprobacion_docente   bool   `json:"aprobacion_docente,omitempty"`
-	Aprobacion_proyecto  bool   `json:"aprobacion_proyecto,omitempty"`
-	Plan_docente_id      string `json:"plan_docente_id,omitempty"`
-	Activo               bool   `json:"activo,omitempty"`
-	Fecha_creacion       string `json:"fecha_creacion,omitempty"`
-	Fecha_modificacion   string `json:"fecha_modificacion,omitempty"`
+	Id                        string `json:"_id,omitempty"`
+	Docente_id                string `json:"docente_id,omitempty"`
+	Tipo_vinculacion_id       string `json:"tipo_vinculacion_id,omitempty"`
+	Espacio_academico_id      string `json:"espacio_academico_id,omitempty"`
+	Periodo_id                string `json:"periodo_id,omitempty"`
+	Aprobacion_docente        bool   `json:"aprobacion_docente,omitempty"`
+	Aprobacion_proyecto       bool   `json:"aprobacion_proyecto,omitempty"`
+	Plan_docente_id           string `json:"plan_docente_id,omitempty"`
+	Activo                    bool   `json:"activo,omitempty"`
+	Proyecto_academico_id     string `json:"proyecto_academico_id,omitempty"`
+	Proyecto_academico_nombre string `json:"proyecto_academico_nombre,omitempty"`
+	Fecha_creacion            string `json:"fecha_creacion,omitempty"`
+	Fecha_modificacion        string `json:"fecha_modificacion,omitempty"`
 }
 
 type CargaPlan struct {

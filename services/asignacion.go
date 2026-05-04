@@ -7,6 +7,7 @@ import (
 
 	"github.com/astaxie/beego"
 	"github.com/astaxie/beego/logs"
+	"github.com/udistrital/trabajo_docente_mid/models"
 	"github.com/udistrital/trabajo_docente_mid/utils"
 	request "github.com/udistrital/utils_oas/request"
 	requestmanager "github.com/udistrital/utils_oas/requestresponse"
@@ -175,6 +176,52 @@ func ListaAsignacionDocente(docente, vigencia string) requestmanager.APIResponse
 		/* c.Ctx.Output.SetStatus(404)
 		c.Data["json"] = map[string]interface{}{"Success": false, "Status": "404", "Message": "No se encontraron registros de preasignaciones"} */
 	}
+}
+
+func convertirCargaPlanParaDefinePTD(carga models.CargaPlan) (map[string]interface{}, error) {
+	item := map[string]interface{}{
+		"id":                   carga.Id,
+		"espacio_academico_id": carga.Espacio_academico_id,
+		"actividad_id":         carga.Actividad_id,
+		"plan_docente_id":      carga.Plan_docente_id,
+		"hora_inicio":          carga.Hora_inicio,
+		"duracion":             carga.Duracion,
+		"salon_id":             carga.Salon_id,
+		"sede_id":              carga.Sede_id,
+		"edificio_id":          carga.Edificio_id,
+		"activo":               carga.Activo,
+	}
+
+	if strings.TrimSpace(carga.Colocacion_espacio_academico_id) != "" {
+		colocacion, existe := obtenerColocacionHoraria(carga.Colocacion_espacio_academico_id)
+		if existe && colocacion != nil {
+			if horario, ok := colocacion["ColocacionEspacioAcademico"]; ok {
+				var horarioJSON interface{}
+				if err := json.Unmarshal([]byte(fmt.Sprintf("%v", horario)), &horarioJSON); err == nil {
+					item["horario"] = horarioJSON
+				}
+			}
+			if resumen, ok := colocacion["ResumenColocacionEspacioFisico"].(string); ok {
+				var resumenJSON map[string]interface{}
+				if err := json.Unmarshal([]byte(resumen), &resumenJSON); err == nil {
+					if espacioFisico, ok := resumenJSON["espacio_fisico"].(map[string]interface{}); ok {
+						item["sede_id"] = fmt.Sprintf("%v", espacioFisico["sede_id"])
+						item["edificio_id"] = fmt.Sprintf("%v", espacioFisico["edificio_id"])
+						item["salon_id"] = fmt.Sprintf("%v", espacioFisico["salon_id"])
+					}
+				}
+			}
+		}
+	}
+
+	if _, ok := item["horario"]; !ok {
+		item["horario"] = map[string]interface{}{
+			"hora_inicio": carga.Hora_inicio,
+			"duracion":    carga.Duracion,
+		}
+	}
+
+	return item, nil
 }
 
 // verificarSiTieneObservaciones verifica si el campo de observaciones tiene contenido

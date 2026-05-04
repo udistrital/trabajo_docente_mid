@@ -20,6 +20,7 @@ func (c *EspacioAcademicoController) URLMapping() {
 	c.Mapping("EspaciosAcademicosProyectoPeriodo", c.EspaciosAcademicosProyectoPeriodo)
 	c.Mapping("GruposEspacioPeriodo", c.GruposEspacioPeriodo)
 	c.Mapping("InformacionCurso", c.InformacionCurso)
+	c.Mapping("InformacionHorarios", c.InformacionHorarios)
 }
 
 // GrupoEspacioAcademico ...
@@ -82,7 +83,7 @@ func (c *EspacioAcademicoController) GrupoEspacioAcademicoPadre() {
 // @Param	anio		query 	string	true		"Anio de consulta"
 // @Param	periodo		query 	string	true		"Periodo academico"
 // @Param	proyecto	query 	string	false		"Proyecto curricular"
-// @Param	documento-coordinador	query 	string	false		"Documento del coordinador"
+// @Param	documento_coordinador	query 	string	false		"Documento del coordinador"
 // @Success 200 {}
 // @Failure 400 the request contains an incorrect parameter
 // @Failure 404 no record exist
@@ -93,10 +94,7 @@ func (c *EspacioAcademicoController) EspaciosAcademicosProyectoPeriodo() {
 	anio := c.GetString("anio")
 	periodo := c.GetString("periodo")
 	proyecto := c.GetString("proyecto")
-	documentoCoordinador := c.GetString("documento-coordinador")
-	if documentoCoordinador == "" {
-		documentoCoordinador = c.GetString("documento_coordinador")
-	}
+	documentoCoordinador := c.GetString("documento_coordinador")
 
 	if anio == "" || periodo == "" || (proyecto == "" && documentoCoordinador == "") {
 		logs.Error(anio, periodo, proyecto, documentoCoordinador)
@@ -128,9 +126,6 @@ func (c *EspacioAcademicoController) GruposEspacioPeriodo() {
 	anio := c.GetString("anio")
 	periodo := c.GetString("periodo")
 	espacio := c.GetString("espacio")
-	if espacio == "" {
-		espacio = c.GetString("espacio_academico_id")
-	}
 
 	if anio == "" || periodo == "" || espacio == "" {
 		logs.Error(anio, periodo, espacio)
@@ -164,6 +159,38 @@ func (c *EspacioAcademicoController) InformacionCurso() {
 		c.Ctx.Output.SetStatus(400)
 	} else {
 		resultado := services.DetalleCursoId(id)
+		c.Data["json"] = resultado
+		c.Ctx.Output.SetStatus(resultado.Status)
+	}
+
+	c.ServeJSON()
+}
+
+// InformacionHorarios ...
+// @Title InformacionHorarios
+// @Description Consulta horarios por anio, periodo, asignatura y grupo en academica y los normaliza al formato de colocacion
+// @Param	anio		path 	string	true		"Anio de consulta"
+// @Param	periodo		path 	string	true		"Periodo academico"
+// @Param	asignatura	path 	string	true		"Id de la asignatura"
+// @Param	grupo		path 	string	true		"Id del grupo"
+// @Success 200 {}
+// @Failure 400 the request contains an incorrect parameter
+// @Failure 404 no record exist
+// @router /informacion-horarios/:anio/:periodo/:asignatura/:grupo [get]
+func (c *EspacioAcademicoController) InformacionHorarios() {
+	defer errorhandler.HandlePanic(&c.Controller)
+
+	anio := c.Ctx.Input.Param(":anio")
+	periodo := c.Ctx.Input.Param(":periodo")
+	asignaturaID := c.Ctx.Input.Param(":asignatura")
+	grupoID := c.Ctx.Input.Param(":grupo")
+
+	if anio == "" || periodo == "" || asignaturaID == "" || grupoID == "" {
+		logs.Error(anio, periodo, asignaturaID, grupoID)
+		c.Data["json"] = requestmanager.APIResponseDTO(false, 400, nil, "Error: Parametro(s) con valores no validos")
+		c.Ctx.Output.SetStatus(400)
+	} else {
+		resultado := services.InformacionHorarios(anio, periodo, asignaturaID, grupoID)
 		c.Data["json"] = resultado
 		c.Ctx.Output.SetStatus(resultado.Status)
 	}
