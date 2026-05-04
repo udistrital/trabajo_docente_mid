@@ -162,8 +162,11 @@
                     "200": {
                         "description": "{}"
                     },
+                    "400": {
+                        "description": "the request contains an incorrect parameter"
+                    },
                     "404": {
-                        "description": "he request contains an incorrect parameter or no record exist"
+                        "description": "no record exist"
                     }
                 }
             }
@@ -188,8 +191,187 @@
                     "200": {
                         "description": "{}"
                     },
+                    "400": {
+                        "description": "the request contains an incorrect parameter"
+                    },
                     "404": {
-                        "description": "he request contains an incorrect parameter or no record exist"
+                        "description": "no record exist"
+                    }
+                }
+            }
+        },
+        "/espacio-academico/grupos-periodo": {
+            "get": {
+                "tags": [
+                    "espacio-academico"
+                ],
+                "description": "Lista grupos por anio, periodo y espacio academico",
+                "operationId": "EspacioAcademicoController.GruposEspacioPeriodo",
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "anio",
+                        "description": "Anio de consulta",
+                        "required": true,
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "periodo",
+                        "description": "Periodo academico",
+                        "required": true,
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "espacio",
+                        "description": "Espacio academico",
+                        "required": true,
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "espacio_academico_id",
+                        "description": "Id unico del espacio academico",
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "{}"
+                    },
+                    "400": {
+                        "description": "the request contains an incorrect parameter"
+                    },
+                    "404": {
+                        "description": "no record exist"
+                    }
+                }
+            }
+        },
+        "/espacio-academico/informacion-curso": {
+            "get": {
+                "tags": [
+                    "espacio-academico"
+                ],
+                "description": "Consulta el detalle de curso por id (CUR_ID) en academica",
+                "operationId": "EspacioAcademicoController.InformacionCurso",
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "id",
+                        "description": "Id del curso en academica",
+                        "required": true,
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "{}"
+                    },
+                    "400": {
+                        "description": "the request contains an incorrect parameter"
+                    },
+                    "404": {
+                        "description": "no record exist"
+                    }
+                }
+            }
+        },
+        "/espacio-academico/informacion-horarios/{anio}/{periodo}/{asignatura}/{grupo}": {
+            "get": {
+                "tags": [
+                    "espacio-academico"
+                ],
+                "description": "Consulta horarios por anio, periodo, asignatura y grupo en academica y los normaliza al formato de colocacion",
+                "operationId": "EspacioAcademicoController.InformacionHorarios",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "anio",
+                        "description": "Anio de consulta",
+                        "required": true,
+                        "type": "string"
+                    },
+                    {
+                        "in": "path",
+                        "name": "periodo",
+                        "description": "Periodo academico",
+                        "required": true,
+                        "type": "string"
+                    },
+                    {
+                        "in": "path",
+                        "name": "asignatura",
+                        "description": "Id de la asignatura",
+                        "required": true,
+                        "type": "string"
+                    },
+                    {
+                        "in": "path",
+                        "name": "grupo",
+                        "description": "Id del grupo",
+                        "required": true,
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "{}"
+                    },
+                    "400": {
+                        "description": "the request contains an incorrect parameter"
+                    },
+                    "404": {
+                        "description": "no record exist"
+                    }
+                }
+            }
+        },
+        "/espacio-academico/proyecto-periodo": {
+            "get": {
+                "tags": [
+                    "espacio-academico"
+                ],
+                "description": "Lista espacios academicos por anio, periodo y proyecto curricular",
+                "operationId": "EspacioAcademicoController.EspaciosAcademicosProyectoPeriodo",
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "anio",
+                        "description": "Anio de consulta",
+                        "required": true,
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "periodo",
+                        "description": "Periodo academico",
+                        "required": true,
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "proyecto",
+                        "description": "Proyecto curricular",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "documento_coordinador",
+                        "description": "Documento del coordinador",
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "{}"
+                    },
+                    "400": {
+                        "description": "the request contains an incorrect parameter"
+                    },
+                    "404": {
+                        "description": "no record exist"
                     }
                 }
             }
