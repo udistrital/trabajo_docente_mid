@@ -13,7 +13,7 @@ import (
 
 // ListaEventos consulta los eventos en academica
 func ListaEventos() requestmanager.APIResponse {
-	url := "http://" + beego.AppConfig.String("AcademicaEspacioAcademicoService") + "eventos"
+	url := beego.AppConfig.String("AcademicaEspacioAcademicoService") + "eventos"
 
 	var responseXML models.EventosXML
 	logs.Info("Consultando endpoint de eventos: ", url)
@@ -46,7 +46,7 @@ func ConsultaCalendariosEventos(documento string, codigoEvento string) requestma
 	logs.Info("Proyectos curriculares encontrados para el coordinador o docente: ", proyectos)
 
 	var resultados []map[string]interface{}
-	urlCalendarioBase := "http://" + beego.AppConfig.String("AcademicaEspacioAcademicoService") + "calendario_eventos/"
+	urlCalendarioBase := beego.AppConfig.String("AcademicaEspacioAcademicoService") + "calendario_eventos/"
 
 	for _, proyectoData := range proyectos {
 		proyecto := proyectoData["codigo_carrera"].(string)
@@ -107,7 +107,7 @@ type datoDocentePlantaXML struct {
 
 // ObtenerDetalleProyectosCurriculares obtiene los proyectos con código y nombre asociados a un documento (usuario)
 func ObtenerDetalleProyectosCurriculares(documento string) ([]map[string]interface{}, error) {
-	url := "http://" + beego.AppConfig.String("AcademicaEspacioAcademicoService") +
+	url := beego.AppConfig.String("AcademicaEspacioAcademicoService") +
 		"coordinador_usuario/" + documento
 
 	var responseXML proyectosCurricularesXML
@@ -140,7 +140,7 @@ func ObtenerDetalleProyectosCurriculares(documento string) ([]map[string]interfa
 	}
 
 	if len(proyectos) == 0 {
-		urlFallback := "http://busservicios.intranetoas.udistrital.edu.co:8282/wso2eiserver/services/academica_pruebas/consulta_datos_docente_planta/" + documento
+		urlFallback := beego.AppConfig.String("AcademicaEspacioAcademicoService") + "consulta_datos_docente_planta/" + documento
 		var responseFallback datosCollectionXML
 
 		if err := request.GetXml(urlFallback, &responseFallback); err == nil {
