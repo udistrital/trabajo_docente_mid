@@ -67,6 +67,68 @@
                 }
             }
         },
+        "/calendario/calendario_eventos": {
+            "get": {
+                "tags": [
+                    "calendario"
+                ],
+                "description": "Realiza el cruce de eventos del calendario con los proyectos curriculares a cargo de un docente/coordinador",
+                "operationId": "CalendarioController.GetCalendariosEventos",
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "documento",
+                        "description": "Documento del coordinador o docente",
+                        "required": true,
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "codigo_evento",
+                        "description": "Codigo del evento del calendario",
+                        "required": true,
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/map[string]interface{}"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "no record exist"
+                    }
+                }
+            }
+        },
+        "/calendario/eventos": {
+            "get": {
+                "tags": [
+                    "calendario"
+                ],
+                "description": "Lista los eventos académicos",
+                "operationId": "CalendarioController.GetEventos",
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/map[string]interface{}"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "no record exist"
+                    }
+                }
+            }
+        },
         "/docente/documento": {
             "get": {
                 "tags": [
@@ -817,6 +879,10 @@
         }
     },
     "definitions": {
+        "map[string]interface{}": {
+            "title": "map[string]interface{}",
+            "type": "object"
+        },
         "{}": {
             "title": "{}",
             "type": "object"
@@ -850,6 +916,10 @@
         {
             "name": "plan",
             "description": "PlanController operations for Asignacion\n"
+        },
+        {
+            "name": "calendario",
+            "description": "CalendarioController operations for Calendario\n"
         }
     ]
 }
