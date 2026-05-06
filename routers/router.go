@@ -6,12 +6,12 @@ package routers
 import (
 	"github.com/astaxie/beego"
 	"github.com/udistrital/trabajo_docente_mid/controllers"
-	"github.com/udistrital/utils_oas/errorhandler"
+	//"github.com/udistrital/utils_oas/errorhandler"
 )
 
 func init() {
 
-	beego.ErrorController(&errorhandler.ErrorHandlerController{})
+	//beego.ErrorController(&errorhandler.ErrorHandlerController{})
 
 	ns := beego.NewNamespace("/v1",
 		beego.NSNamespace("/reporte",
@@ -47,6 +47,11 @@ func init() {
 		beego.NSNamespace("/plan",
 			beego.NSInclude(
 				&controllers.PlanController{},
+			),
+		),
+		beego.NSNamespace("/calendario",
+			beego.NSInclude(
+				&controllers.CalendarioController{},
 			),
 		),
 	)
