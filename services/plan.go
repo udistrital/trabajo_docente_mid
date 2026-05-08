@@ -442,12 +442,12 @@ func consultarDetallePlan(planes []interface{}, idVinculacion int64) map[string]
 
 		// // Función duplicada para SGA V1
 		var resPreasignacion map[string]interface{}
-		if errPreasignacion := request.GetJson(beego.AppConfig.String("PlanTrabajoDocenteService")+"pre_asignacion?query=activo:true,aprobacion_docente:true,aprobacion_proyecto:true,plan_docente_id:"+plan.(map[string]interface{})["_id"].(string), &resPreasignacion); errPreasignacion == nil {
+		if errPreasignacion := request.GetJson(beego.AppConfig.String("PlanTrabajoDocenteService")+"pre_asignacion?query=activo:true,aprobacion_docente:true,plan_docente_id:"+plan.(map[string]interface{})["_id"].(string), &resPreasignacion); errPreasignacion == nil {
 			//fmt.Printf("resPreasignacion Data: %+v\n", resPreasignacion["Data"])
 			for _, preasignacion := range resPreasignacion["Data"].([]interface{}) {
 				var responseXML informacionCursoXML
 				if memEspaciosDetalle[preasignacion.(map[string]interface{})["espacio_academico_id"].(string)] == nil {
-					url := "http://" + beego.AppConfig.String("AcademicaEspacioAcademicoService") + "informacion_curso/" + preasignacion.(map[string]interface{})["espacio_academico_id"].(string)
+					url := beego.AppConfig.String("AcademicaEspacioAcademicoService") + "informacion_curso/" + preasignacion.(map[string]interface{})["espacio_academico_id"].(string)
 					if errEspacioAcademico := request.GetXml(url, &responseXML); errEspacioAcademico == nil {
 						detalle := responseXML.Detalle
 						if strings.TrimSpace(detalle.Id) != "" {
@@ -893,7 +893,7 @@ func ListaPlanPreaprobado(vigencia, proyecto int64) requestmanager.APIResponse {
 func consultarEspaciosAcademicosInfoPadre(docente, periodo, vinculacion int64) ([]models.EspacioAcademico, error) {
 	espacios := []models.EspacioAcademico{}
 	response, err := requestmanager.Get(beego.AppConfig.String("PlanTrabajoDocenteService")+
-		fmt.Sprintf("pre_asignacion?query=activo:true,aprobacion_docente:true,aprobacion_proyecto:true,docente_id:%d,periodo_id:%d,tipo_vinculacion_id:%d&fields=espacio_academico_id", docente, periodo, vinculacion),
+		fmt.Sprintf("pre_asignacion?query=activo:true,aprobacion_docente:true,docente_id:%d,periodo_id:%d,tipo_vinculacion_id:%d&fields=espacio_academico_id", docente, periodo, vinculacion),
 		requestmanager.ParseResponseFormato1)
 	if err != nil {
 		return nil, fmt.Errorf("PlanTrabajoDocenteService (pre_asignacion): %s", err.Error())

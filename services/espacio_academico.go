@@ -84,7 +84,7 @@ type horarioXML struct {
 }
 
 func obtenerProyectosCurricularesCoordinador(documento string) ([]string, error) {
-	url := "http://" + beego.AppConfig.String("AcademicaEspacioAcademicoService") +
+	url := beego.AppConfig.String("AcademicaEspacioAcademicoService") +
 		"coordinador_usuario/" + documento
 
 	var responseXML coordinadorUsuarioXML
@@ -145,7 +145,7 @@ func ListaEspaciosAcademicosProyectoPeriodo(anio, periodo, proyecto, documentoCo
 	espaciosIds := map[string]bool{}
 
 	for _, proyectoItem := range proyectosConsulta {
-		url := "http://" + beego.AppConfig.String("AcademicaEspacioAcademicoService") +
+		url := beego.AppConfig.String("AcademicaEspacioAcademicoService") +
 			"espacios_academicos_proyecto_periodo/" + anio + "/" + periodo + "/" + proyectoItem
 
 		var responseXML espaciosAcademicosXML
@@ -181,7 +181,7 @@ func ListaEspaciosAcademicosProyectoPeriodo(anio, periodo, proyecto, documentoCo
 // ListaGruposEspacioPeriodo consulta grupos de un espacio academico
 // por anio y periodo en academica_pruebas.
 func ListaGruposEspacioPeriodo(anio, periodo, espacio string) requestmanager.APIResponse {
-	url := "http://" + beego.AppConfig.String("AcademicaEspacioAcademicoService") +
+	url := beego.AppConfig.String("AcademicaEspacioAcademicoService") +
 		"grupos_espacio_periodo/" + anio + "/" + periodo + "/" + espacio
 
 	var responseXML gruposEspacioPeriodoXML
@@ -206,7 +206,7 @@ func ListaGruposEspacioPeriodo(anio, periodo, espacio string) requestmanager.API
 
 // DetalleCursoId consulta el detalle de un curso por CUR_ID
 func DetalleCursoId(id string) requestmanager.APIResponse {
-	url := "http://" + beego.AppConfig.String("AcademicaEspacioAcademicoService") +
+	url := beego.AppConfig.String("AcademicaEspacioAcademicoService") +
 		"informacion_curso/" + id
 
 	var responseXML informacionCursoXML
@@ -331,7 +331,7 @@ func resolverEspacioFisicoOikos(id string, cache map[string]map[string]interface
 // InformacionHorarios consulta el endpoint de academica y transforma la respuesta
 // al formato requerido por colocacion-espacio-academico para el cliente.
 func InformacionHorarios(anio, periodo, asignaturaID, grupoID string) requestmanager.APIResponse {
-	url := "http://" + beego.AppConfig.String("AcademicaEspacioAcademicoService") +
+	url := beego.AppConfig.String("AcademicaEspacioAcademicoService") +
 		"informacion_horarios/" + anio + "/" + periodo + "/" + asignaturaID + "/" + grupoID
 
 	var responseXML informacionHorariosXML

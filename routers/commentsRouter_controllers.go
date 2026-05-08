@@ -25,15 +25,6 @@ func init() {
 			Filters:          nil,
 			Params:           nil})
 
-	beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:AsignacionController"] = append(beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:AsignacionController"],
-		beego.ControllerComments{
-			Method:           "EnviarAsignacion",
-			Router:           "/enviar",
-			AllowHTTPMethods: []string{"put"},
-			MethodParams:     param.Make(),
-			Filters:          nil,
-			Params:           nil})
-
 	beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:DocenteController"] = append(beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:DocenteController"],
 		beego.ControllerComments{
 			Method:           "DocumentoDocenteVinculacion",
@@ -209,6 +200,24 @@ func init() {
 		beego.ControllerComments{
 			Method:           "ReporteVerificacionCumplimientoPTD",
 			Router:           "/verificacion-cumplimiento-ptd",
+			AllowHTTPMethods: []string{"get"},
+			MethodParams:     param.Make(),
+			Filters:          nil,
+			Params:           nil})
+
+	beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:CalendarioController"] = append(beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:CalendarioController"],
+		beego.ControllerComments{
+			Method:           "GetEventos",
+			Router:           "/eventos",
+			AllowHTTPMethods: []string{"get"},
+			MethodParams:     param.Make(),
+			Filters:          nil,
+			Params:           nil})
+
+	beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:CalendarioController"] = append(beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:CalendarioController"],
+		beego.ControllerComments{
+			Method:           "GetCalendariosEventos",
+			Router:           "/calendario_eventos",
 			AllowHTTPMethods: []string{"get"},
 			MethodParams:     param.Make(),
 			Filters:          nil,
