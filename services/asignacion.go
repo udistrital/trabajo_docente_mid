@@ -95,9 +95,9 @@ func ConsultarDetalleAsignacion(asignaciones []interface{}, forTeacher bool) []m
 				}
 				// Verificar si el plan tiene observaciones
 				if resumen, ok := resPlan["Data"].(map[string]interface{})["resumen"].(string); ok {
-				tieneObservaciones = VerificarSiTieneObservaciones(resumen)
+					tieneObservaciones = VerificarSiTieneObservaciones(resumen)
+				}
 			}
-		}
 
 			desactivarEnviar := false
 			tipoGestion := "ver"
