@@ -6,10 +6,8 @@ import (
 	"testing"
 
 	"bou.ke/monkey"
-	"github.com/udistrital/trabajo_docente_mid/models"
 	"github.com/udistrital/trabajo_docente_mid/services"
 	"github.com/udistrital/utils_oas/request"
-	requestmanager "github.com/udistrital/utils_oas/requestresponse"
 )
 
 const separadorSlash = "=================================================================================="
@@ -241,3 +239,4 @@ func TestListaAsignacionDocente(t *testing.T) {
 	t.Log("Fin TestListaAsignacionDocente")
 	t.Log(separadorSlash)
 }
+
