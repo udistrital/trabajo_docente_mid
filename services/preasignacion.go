@@ -3,6 +3,7 @@ package services
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/astaxie/beego"
 	"github.com/astaxie/beego/logs"
@@ -303,31 +304,27 @@ func DeletePreasignacion(preAsignacionId string) requestmanager.APIResponse {
 		return requestresponse.APIResponseDTO(false, 404, nil, "Error en el servicio plan docente"+err.Error())
 	}
 
-	espacioAcademicoId := preAsignacion["Data"].(map[string]interface{})["espacio_academico_id"].(string)
-	docenteId := preAsignacion["Data"].(map[string]interface{})["docente_id"].(string)
+	preasignacionData := preAsignacion["Data"].(map[string]interface{})
+	espacioAcademicoId := fmt.Sprintf("%v", preasignacionData["espacio_academico_id"])
+	docenteId := fmt.Sprintf("%v", preasignacionData["docente_id"])
 
-	urlColocaciones := beego.AppConfig.String("PlanTrabajoDocenteService") + "carga_plan?query=activo:true,espacio_academico_id:" + espacioAcademicoId
-
-	var colocacionesRes map[string]interface{}
-	if err := request.GetJson(urlColocaciones, &colocacionesRes); err != nil {
-		return requestresponse.APIResponseDTO(false, 404, nil, "Error en el servicio plan docente"+err.Error())
-	}
-
-	if len(colocacionesRes["Data"].([]interface{})) > 0 {
-		return requestmanager.APIResponseDTO(false, 200, nil, "tiene colocaciones")
-	}
-
-	_, err := helpers.DesactivarPreAsignacion(preAsignacionId)
+	planDocenteId, err := resolverPlanDocenteDePreasignacion(preasignacionData)
 	if err != nil {
 		return requestresponse.APIResponseDTO(false, 500, nil, err.Error())
 	}
 
-	if planDocenteId, exists := preAsignacion["Data"].(map[string]interface{})["plan_docente_id"]; exists || planDocenteId != nil {
-		planDocenteId := preAsignacion["Data"].(map[string]interface{})["plan_docente_id"].(string)
-		_, err := helpers.CambiarEstadoDePlanDocente(planDocenteId, "DEF") //DEF es el codigo de abreviacion de Definido
-		if err != nil {
-			return requestresponse.APIResponseDTO(false, 500, nil, err.Error())
-		}
+	if err := limpiarCargaPlanDocente(planDocenteId); err != nil {
+		return requestresponse.APIResponseDTO(false, 500, nil, err.Error())
+	}
+
+	_, err = helpers.DesactivarPreAsignacion(preAsignacionId)
+	if err != nil {
+		return requestresponse.APIResponseDTO(false, 500, nil, err.Error())
+	}
+
+	_, err = helpers.CambiarEstadoDePlanDocente(planDocenteId, "DEF")
+	if err != nil {
+		return requestresponse.APIResponseDTO(false, 500, nil, err.Error())
 	}
 
 	_, err = helpers.DesasignarDocenteDeEspacioAcademico(espacioAcademicoId, docenteId)
@@ -336,4 +333,120 @@ func DeletePreasignacion(preAsignacionId string) requestmanager.APIResponse {
 	}
 
 	return requestmanager.APIResponseDTO(true, 200, nil, "eliminado correctamente")
+}
+
+func resolverPlanDocenteDePreasignacion(preasignacion map[string]interface{}) (string, error) {
+	if planDocenteId, ok := preasignacion["plan_docente_id"]; ok && planDocenteId != nil {
+		planDocenteIdStr := fmt.Sprintf("%v", planDocenteId)
+		if planDocenteIdStr != "" && planDocenteIdStr != "<nil>" {
+			return planDocenteIdStr, nil
+		}
+	}
+
+	docenteId := fmt.Sprintf("%v", preasignacion["docente_id"])
+	periodoId := fmt.Sprintf("%v", preasignacion["periodo_id"])
+	tipoVinculacionId := fmt.Sprintf("%v", preasignacion["tipo_vinculacion_id"])
+
+	if docenteId == "" || periodoId == "" || tipoVinculacionId == "" {
+		return "", fmt.Errorf("no fue posible resolver el plan docente asociado a la preasignacion")
+	}
+
+	var resPlan map[string]interface{}
+	urlPlanDocente := beego.AppConfig.String("PlanTrabajoDocenteService") +
+		fmt.Sprintf("plan_docente?query=activo:true,docente_id:%s,periodo_id:%s,tipo_vinculacion_id:%s&fields=_id&limit=1", docenteId, periodoId, tipoVinculacionId)
+	if err := request.GetJson(urlPlanDocente, &resPlan); err != nil {
+		return "", fmt.Errorf("error consultando el plan docente asociado: %v", err)
+	}
+
+	data, ok := resPlan["Data"].([]interface{})
+	if !ok || len(data) == 0 {
+		return "", fmt.Errorf("no se encontró un plan docente asociado a la preasignacion")
+	}
+
+	planDocente, ok := data[0].(map[string]interface{})
+	if !ok {
+		return "", fmt.Errorf("respuesta inválida al consultar el plan docente asociado")
+	}
+
+	planDocenteId := fmt.Sprintf("%v", planDocente["_id"])
+	if planDocenteId == "" || planDocenteId == "<nil>" {
+		return "", fmt.Errorf("no se pudo obtener el identificador del plan docente")
+	}
+
+	return planDocenteId, nil
+}
+
+func limpiarCargaPlanDocente(planDocenteId string) error {
+	if planDocenteId == "" {
+		return fmt.Errorf("no se pudo limpiar la carga porque el plan docente no es válido")
+	}
+
+	estadoPlanDef, err := obtenerEstadoPlanDefectoID()
+	if err != nil {
+		return err
+	}
+
+	var resCarga map[string]interface{}
+	urlCarga := beego.AppConfig.String("PlanTrabajoDocenteService") +
+		fmt.Sprintf("carga_plan?query=activo:true,plan_docente_id:%s&limit=0", planDocenteId)
+	if err := request.GetJson(urlCarga, &resCarga); err != nil {
+		return fmt.Errorf("error consultando la carga del plan docente: %v", err)
+	}
+
+	idsADescartar := []map[string]interface{}{}
+	if data, ok := resCarga["Data"].([]interface{}); ok {
+		for _, carga := range data {
+			if cargaMap, ok := carga.(map[string]interface{}); ok {
+				if id := fmt.Sprintf("%v", cargaMap["_id"]); id != "" && id != "<nil>" {
+					idsADescartar = append(idsADescartar, map[string]interface{}{"Id": id})
+				}
+			}
+		}
+	}
+
+	payload := map[string]interface{}{
+		"carga_plan": []interface{}{},
+		"plan_docente": map[string]interface{}{
+			"id":          planDocenteId,
+			"resumen":     "{}",
+			"estado_plan": estadoPlanDef,
+		},
+		"descartar": idsADescartar,
+	}
+
+	var resPlan map[string]interface{}
+	if err := request.SendJson(beego.AppConfig.String("PlanTrabajoDocenteService")+"plan/", "PUT", &resPlan, payload); err != nil {
+		return fmt.Errorf("error actualizando el plan docente para limpiar la carga: %v", err)
+	}
+
+	if success, ok := resPlan["Success"].(bool); !ok || !success {
+		return fmt.Errorf("no fue posible limpiar la carga del plan docente")
+	}
+
+	return nil
+}
+
+func obtenerEstadoPlanDefectoID() (string, error) {
+	var resEstado map[string]interface{}
+	urlEstado := beego.AppConfig.String("PlanTrabajoDocenteService") + "estado_plan?query=codigo_abreviacion:DEF&limit=1"
+	if err := request.GetJson(urlEstado, &resEstado); err != nil {
+		return "", fmt.Errorf("error consultando el estado DEF del plan docente: %v", err)
+	}
+
+	data, ok := resEstado["Data"].([]interface{})
+	if !ok || len(data) == 0 {
+		return "", fmt.Errorf("no se encontró el estado DEF del plan docente")
+	}
+
+	estado, ok := data[0].(map[string]interface{})
+	if !ok {
+		return "", fmt.Errorf("respuesta inválida al consultar el estado DEF del plan docente")
+	}
+
+	estadoID := fmt.Sprintf("%v", estado["_id"])
+	if strings.TrimSpace(estadoID) == "" || estadoID == "<nil>" {
+		return "", fmt.Errorf("no se pudo obtener el identificador del estado DEF del plan docente")
+	}
+
+	return estadoID, nil
 }

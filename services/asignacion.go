@@ -20,7 +20,7 @@ func ListaAsignacion(vigencia string) requestmanager.APIResponse {
 	if errPreasignacion := request.GetJson(beego.AppConfig.String("PlanTrabajoDocenteService")+"pre_asignacion?query=activo:true,aprobacion_docente:true,"+
 		"periodo_id:"+vigencia+"&fields=docente_id,tipo_vinculacion_id,plan_docente_id,periodo_id", &resPreasignaciones); errPreasignacion == nil {
 		if fmt.Sprintf("%v", resPreasignaciones["Data"]) != "[]" {
-			response := consultarDetalleAsignacion(resPreasignaciones["Data"].([]interface{}), false)
+			response := ConsultarDetalleAsignacion(resPreasignaciones["Data"].([]interface{}), false)
 			return requestmanager.APIResponseDTO(true, 200, response)
 			/* c.Ctx.Output.SetStatus(200)
 			c.Data["json"] = map[string]interface{}{"Success": true, "Status": "200", "Message": "Query successful", "Data": response} */
@@ -37,7 +37,7 @@ func ListaAsignacion(vigencia string) requestmanager.APIResponse {
 	}
 }
 
-func consultarDetalleAsignacion(asignaciones []interface{}, forTeacher bool) []map[string]interface{} {
+func ConsultarDetalleAsignacion(asignaciones []interface{}, forTeacher bool) []map[string]interface{} {
 	memEstados := map[string]interface{}{}
 	memPeriodo := map[string]interface{}{}
 	memDocente := map[string]interface{}{}
@@ -95,7 +95,7 @@ func consultarDetalleAsignacion(asignaciones []interface{}, forTeacher bool) []m
 				}
 				// Verificar si el plan tiene observaciones
 				if resumen, ok := resPlan["Data"].(map[string]interface{})["resumen"].(string); ok {
-					tieneObservaciones = verificarSiTieneObservaciones(resumen)
+					tieneObservaciones = VerificarSiTieneObservaciones(resumen)
 				}
 			}
 
@@ -161,7 +161,7 @@ func ListaAsignacionDocente(docente, vigencia string) requestmanager.APIResponse
 
 	if errPreasignacion := request.GetJson(beego.AppConfig.String("PlanTrabajoDocenteService")+"pre_asignacion?query=activo:true,aprobacion_docente:true,aprobacion_proyecto:true,docente_id:"+docente+",periodo_id:"+vigencia+"&fields=docente_id,tipo_vinculacion_id,plan_docente_id,periodo_id", &resPreasignaciones); errPreasignacion == nil {
 		if fmt.Sprintf("%v", resPreasignaciones["Data"]) != "[]" {
-			response := consultarDetalleAsignacion(resPreasignaciones["Data"].([]interface{}), true)
+			response := ConsultarDetalleAsignacion(resPreasignaciones["Data"].([]interface{}), true)
 			return requestmanager.APIResponseDTO(true, 200, response)
 			/* c.Ctx.Output.SetStatus(200)
 			c.Data["json"] = map[string]interface{}{"Success": true, "Status": "200", "Message": "Query successful", "Data": response} */
@@ -178,7 +178,7 @@ func ListaAsignacionDocente(docente, vigencia string) requestmanager.APIResponse
 	}
 }
 
-func convertirCargaPlanParaDefinePTD(carga models.CargaPlan) (map[string]interface{}, error) {
+func ConvertirCargaPlanParaDefinePTD(carga models.CargaPlan) (map[string]interface{}, error) {
 	item := map[string]interface{}{
 		"id":                   carga.Id,
 		"espacio_academico_id": carga.Espacio_academico_id,
@@ -224,8 +224,8 @@ func convertirCargaPlanParaDefinePTD(carga models.CargaPlan) (map[string]interfa
 	return item, nil
 }
 
-// verificarSiTieneObservaciones verifica si el campo de observaciones tiene contenido
-func verificarSiTieneObservaciones(resumenJSON string) bool {
+// VerificarSiTieneObservaciones verifica si el campo de observaciones tiene contenido
+func VerificarSiTieneObservaciones(resumenJSON string) bool {
 	if resumenJSON == "" {
 		return false
 	}
