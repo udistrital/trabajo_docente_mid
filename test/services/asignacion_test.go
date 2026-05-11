@@ -19,7 +19,7 @@ func TestListaAsignacion(t *testing.T) {
 
 	t.Run("Caso 1: Consulta exitosa con datos válidos", func(t *testing.T) {
 		guardReq := monkey.Patch(request.GetJson, func(url string, target interface{}) error {
-			if strings.Contains(url, "pre_asignacion?query=activo:true,aprobacion_docente:true,aprobacion_proyecto:true") {
+			if strings.Contains(url, "pre_asignacion?query=activo:true,aprobacion_docente:true,periodo_id:2024&fields=docente_id,tipo_vinculacion_id,plan_docente_id,periodo_id") {
 				if data, ok := target.(*map[string]interface{}); ok {
 					*data = map[string]interface{}{
 						"Data": []interface{}{
@@ -86,7 +86,7 @@ func TestListaAsignacion(t *testing.T) {
 
 	t.Run("Caso 2: Sin datos en la consulta", func(t *testing.T) {
 		guardReq := monkey.Patch(request.GetJson, func(url string, target interface{}) error {
-			if strings.Contains(url, "pre_asignacion?query=activo:true,aprobacion_docente:true,aprobacion_proyecto:true") {
+			if strings.Contains(url, "pre_asignacion?query=activo:true,aprobacion_docente:true,periodo_id:2024&fields=docente_id,tipo_vinculacion_id,plan_docente_id,periodo_id") {
 				if data, ok := target.(*map[string]interface{}); ok {
 					*data = map[string]interface{}{"Data": []interface{}{}}
 				}
@@ -154,7 +154,7 @@ func TestListaAsignacionDocente(t *testing.T) {
 
 	t.Run("Caso 1: Consulta exitosa del docente", func(t *testing.T) {
 		guardReq := monkey.Patch(request.GetJson, func(url string, target interface{}) error {
-			if strings.Contains(url, "pre_asignacion?query=activo:true,aprobacion_docente:true,aprobacion_proyecto:true,docente_id:") {
+			if strings.Contains(url, "pre_asignacion?query=activo:true,aprobacion_docente:true,aprobacion_proyecto:true,docente_id:123,periodo_id:2024&fields=docente_id,tipo_vinculacion_id,plan_docente_id,periodo_id") {
 				if data, ok := target.(*map[string]interface{}); ok {
 					*data = map[string]interface{}{
 						"Data": []interface{}{
