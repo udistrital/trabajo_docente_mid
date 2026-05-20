@@ -313,8 +313,9 @@ func DeletePreasignacion(preAsignacionId string) requestmanager.APIResponse {
 		return requestresponse.APIResponseDTO(false, 500, nil, err.Error())
 	}
 
-	if err := limpiarCargaPlanDocente(planDocenteId); err != nil {
-		return requestresponse.APIResponseDTO(false, 500, nil, err.Error())
+	// Limpiar solo la carga del espacio académico específico de la preasignación (no-crítico)
+	if err := limpiarCargaPlanDocentePorEspacio(planDocenteId, espacioAcademicoId); err != nil {
+		logs.Warn("No fue posible limpiar la carga del plan docente para preasignación %s: %v", preAsignacionId, err)
 	}
 
 	_, err = helpers.DesactivarPreAsignacion(preAsignacionId)
@@ -324,12 +325,12 @@ func DeletePreasignacion(preAsignacionId string) requestmanager.APIResponse {
 
 	_, err = helpers.CambiarEstadoDePlanDocente(planDocenteId, "DEF")
 	if err != nil {
-		return requestresponse.APIResponseDTO(false, 500, nil, err.Error())
+		logs.Warn("No fue posible cambiar estado a DEF para plan_docente %s: %v", planDocenteId, err)
 	}
 
 	_, err = helpers.DesasignarDocenteDeEspacioAcademico(espacioAcademicoId, docenteId)
 	if err != nil {
-		return requestresponse.APIResponseDTO(false, 500, nil, err.Error())
+		logs.Warn("No fue posible desasignar docente de espacio académico %s: %v", espacioAcademicoId, err)
 	}
 
 	return requestmanager.APIResponseDTO(true, 200, nil, "eliminado correctamente")
@@ -402,6 +403,69 @@ func limpiarCargaPlanDocente(planDocenteId string) error {
 				}
 			}
 		}
+	}
+
+	payload := map[string]interface{}{
+		"carga_plan": []interface{}{},
+		"plan_docente": map[string]interface{}{
+			"id":          planDocenteId,
+			"resumen":     "{}",
+			"estado_plan": estadoPlanDef,
+		},
+		"descartar": idsADescartar,
+	}
+
+	var resPlan map[string]interface{}
+	if err := request.SendJson(beego.AppConfig.String("PlanTrabajoDocenteService")+"plan/", "PUT", &resPlan, payload); err != nil {
+		return fmt.Errorf("error actualizando el plan docente para limpiar la carga: %v", err)
+	}
+
+	if success, ok := resPlan["Success"].(bool); !ok || !success {
+		return fmt.Errorf("no fue posible limpiar la carga del plan docente")
+	}
+
+	return nil
+}
+
+// limpiarCargaPlanDocentePorEspacio elimina solo las cargas que pertenecen al espacio académico específico
+func limpiarCargaPlanDocentePorEspacio(planDocenteId, espacioAcademicoId string) error {
+	if planDocenteId == "" || espacioAcademicoId == "" {
+		return fmt.Errorf("no se pudo limpiar la carga porque el plan docente o el espacio académico no son válidos")
+	}
+
+	estadoPlanDef, err := obtenerEstadoPlanDefectoID()
+	if err != nil {
+		return err
+	}
+
+	var resCarga map[string]interface{}
+	urlCarga := beego.AppConfig.String("PlanTrabajoDocenteService") +
+		fmt.Sprintf("carga_plan?query=activo:true,plan_docente_id:%s&limit=0", planDocenteId)
+	if err := request.GetJson(urlCarga, &resCarga); err != nil {
+		return fmt.Errorf("error consultando la carga del plan docente: %v", err)
+	}
+
+	idsADescartar := []map[string]interface{}{}
+	if data, ok := resCarga["Data"].([]interface{}); ok {
+		for _, carga := range data {
+			if cargaMap, ok := carga.(map[string]interface{}); ok {
+				// Filtrar solo las cargas que pertenecen al espacio académico específico
+				cargaEspacioId := fmt.Sprintf("%v", cargaMap["espacio_academico_id"])
+				espacioIdNormalizado := strings.TrimSpace(fmt.Sprintf("%v", espacioAcademicoId))
+				cargaEspacioIdNormalizado := strings.TrimSpace(cargaEspacioId)
+
+				if cargaEspacioIdNormalizado == espacioIdNormalizado && cargaEspacioIdNormalizado != "" && cargaEspacioIdNormalizado != "<nil>" {
+					if id := fmt.Sprintf("%v", cargaMap["_id"]); id != "" && id != "<nil>" {
+						idsADescartar = append(idsADescartar, map[string]interface{}{"Id": id})
+					}
+				}
+			}
+		}
+	}
+
+	// Si no hay cargas a descartar, retornar sin error
+	if len(idsADescartar) == 0 {
+		return nil
 	}
 
 	payload := map[string]interface{}{
