@@ -201,11 +201,154 @@ func DefinePTD(body map[string]interface{}) requestmanager.APIResponse {
 	return requestmanager.APIResponseDTO(true, 200, resultado)
 }
 
+// AprobarPlanesTrabajoDocente aprueba en lote los planes seleccionados desde verificar PTD.
+func AprobarPlanesTrabajoDocente(body map[string]interface{}) requestmanager.APIResponse {
+	planDocenteIDs := extraerIDsPlanoDocente(body["plan_docente_ids"])
+	if len(planDocenteIDs) == 0 {
+		return requestmanager.APIResponseDTO(false, 400, nil, "No se recibieron planes para aprobar")
+	}
+
+	responsableID := body["responsable_id"]
+	if strings.TrimSpace(fmt.Sprintf("%v", responsableID)) == "" || fmt.Sprintf("%v", responsableID) == "<nil>" {
+		return requestmanager.APIResponseDTO(false, 400, nil, "No se recibió el responsable de la aprobación")
+	}
+
+	observacion := strings.TrimSpace(fmt.Sprintf("%v", body["observacion"]))
+	estadoAprobadoID, err := obtenerEstadoPlanIDPorCodigo("APR")
+	if err != nil {
+		return requestmanager.APIResponseDTO(false, 404, nil, err.Error())
+	}
+
+	resultados := make([]map[string]interface{}, 0, len(planDocenteIDs))
+	aprobados := 0
+	fallidos := 0
+
+	for _, planDocenteID := range planDocenteIDs {
+		if err := aprobarPlanDocente(planDocenteID, estadoAprobadoID, observacion, responsableID); err != nil {
+			fallidos++
+			resultados = append(resultados, map[string]interface{}{
+				"id":       planDocenteID,
+				"aprobado": false,
+				"error":    err.Error(),
+			})
+			continue
+		}
+
+		aprobados++
+		resultados = append(resultados, map[string]interface{}{
+			"id":       planDocenteID,
+			"aprobado": true,
+		})
+	}
+
+	return requestmanager.APIResponseDTO(true, 200, map[string]interface{}{
+		"total":      len(planDocenteIDs),
+		"aprobados":  aprobados,
+		"fallidos":   fallidos,
+		"resultados": resultados,
+	})
+}
+
 func obtenerStringDesdeMapa(mapa map[string]interface{}, clave string) string {
 	if valor, ok := mapa[clave]; ok && valor != nil {
 		return fmt.Sprintf("%v", valor)
 	}
 	return ""
+}
+
+func extraerIDsPlanoDocente(valor interface{}) []string {
+	ids := []string{}
+	idsVistos := map[string]struct{}{}
+
+	coleccion, ok := valor.([]interface{})
+	if !ok {
+		return ids
+	}
+
+	for _, item := range coleccion {
+		id := strings.TrimSpace(fmt.Sprintf("%v", item))
+		if id == "" || id == "<nil>" {
+			continue
+		}
+		if _, existe := idsVistos[id]; existe {
+			continue
+		}
+		idsVistos[id] = struct{}{}
+		ids = append(ids, id)
+	}
+
+	return ids
+}
+
+func obtenerEstadoPlanIDPorCodigo(codigo string) (string, error) {
+	var estadoPlan map[string]interface{}
+	urlEstado := beego.AppConfig.String("PlanTrabajoDocenteService") + fmt.Sprintf("estado_plan?query=codigo_abreviacion:%s&limit=1", codigo)
+	if err := request.GetJson(urlEstado, &estadoPlan); err != nil {
+		return "", fmt.Errorf("no fue posible consultar el estado de plan %s: %v", codigo, err)
+	}
+
+	data, ok := estadoPlan["Data"].([]interface{})
+	if !ok || len(data) == 0 {
+		return "", fmt.Errorf("no se encontró el estado de plan %s", codigo)
+	}
+
+	estado, ok := data[0].(map[string]interface{})
+	if !ok {
+		return "", fmt.Errorf("respuesta inválida al consultar el estado de plan %s", codigo)
+	}
+
+	estadoID := strings.TrimSpace(fmt.Sprintf("%v", estado["_id"]))
+	if estadoID == "" || estadoID == "<nil>" {
+		return "", fmt.Errorf("no se encontró el identificador del estado de plan %s", codigo)
+	}
+
+	return estadoID, nil
+}
+
+func aprobarPlanDocente(planDocenteID, estadoAprobadoID, observacion string, responsableID interface{}) error {
+	var planDocente map[string]interface{}
+	urlPlanDocente := beego.AppConfig.String("PlanTrabajoDocenteService") + "plan_docente/" + planDocenteID
+	if err := request.GetJson(urlPlanDocente, &planDocente); err != nil {
+		return fmt.Errorf("no fue posible consultar el plan docente %s: %v", planDocenteID, err)
+	}
+
+	data, ok := planDocente["Data"].(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("respuesta inválida al consultar el plan docente %s", planDocenteID)
+	}
+
+	respuesta := map[string]interface{}{}
+	if respuestaActual, ok := data["respuesta"]; ok && respuestaActual != nil {
+		if err := json.Unmarshal([]byte(fmt.Sprintf("%v", respuestaActual)), &respuesta); err != nil {
+			respuesta = map[string]interface{}{}
+		}
+	}
+
+	respuesta["concertado"] = true
+	respuesta["observacion"] = observacion
+	respuesta["responsable_id"] = responsableID
+
+	data["respuesta"] = toJSONString(respuesta)
+	data["estado_plan_id"] = estadoAprobadoID
+
+	var planDocentePut map[string]interface{}
+	if err := request.SendJson(urlPlanDocente, "PUT", &planDocentePut, data); err != nil {
+		return fmt.Errorf("no fue posible actualizar el plan docente %s: %v", planDocenteID, err)
+	}
+
+	if success, ok := planDocentePut["Success"].(bool); ok && !success {
+		return fmt.Errorf("el servicio rechazó la actualización del plan docente %s", planDocenteID)
+	}
+
+	return nil
+}
+
+func toJSONString(data map[string]interface{}) string {
+	resultado, err := json.Marshal(data)
+	if err != nil {
+		return "{}"
+	}
+	return string(resultado)
 }
 
 func obtenerColocacionHoraria(colocacionID string) (map[string]interface{}, bool) {
