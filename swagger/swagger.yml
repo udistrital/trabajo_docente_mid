@@ -386,6 +386,24 @@ paths:
           description: '{}'
         "404":
           description: the request contains an incorrect parameter or no record exist
+  /plan/aprobacion-masiva:
+    put:
+      tags:
+      - plan
+      description: Aprueba en lote los planes de trabajo docente seleccionados
+      operationId: PlanController.AprobarPlanesTrabajoDocente
+      parameters:
+      - in: body
+        name: body
+        description: body con ids de planes y datos de aprobacion
+        required: true
+        schema:
+          $ref: '#/definitions/{}'
+      responses:
+        "200":
+          description: '{}'
+        "400":
+          description: the request contains an incorrect parameter or no record exist
   /plan/copiar:
     get:
       tags:
