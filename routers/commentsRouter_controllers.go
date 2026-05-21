@@ -145,7 +145,7 @@ func init() {
 	beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:PlanController"] = append(beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:PlanController"],
 		beego.ControllerComments{
 			Method:           "AprobarPlanesTrabajoDocente",
-			Router:           "/aprobacion-masiva",
+			Router:           "/aprobacion_masiva",
 			AllowHTTPMethods: []string{"put"},
 			MethodParams:     param.Make(),
 			Filters:          nil,
