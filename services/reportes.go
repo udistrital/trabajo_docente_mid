@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -100,24 +101,24 @@ func obtenerInformacionRequeridaRepCargaLectiva(docente, vinculacion, periodo in
 	logs.Info("PlanTrabajoDocenteService (carga_plan):", datosCargaPlan)
 
 	/*
-	for i := 0; i < len(datosCargaPlan); i++ {
-		resp, err := requestmanager.Get(beego.AppConfig.String("HorarioService")+
-			fmt.Sprintf("colocacion-espacio-academico/%s", datosCargaPlan[i].Colocacion_espacio_academico_id), requestmanager.ParseResponseFormato2)
+		for i := 0; i < len(datosCargaPlan); i++ {
+			resp, err := requestmanager.Get(beego.AppConfig.String("HorarioService")+
+				fmt.Sprintf("colocacion-espacio-academico/%s", datosCargaPlan[i].Colocacion_espacio_academico_id), requestmanager.ParseResponseFormato2)
 
-		if err != nil {
-			logs.Error(err)
-			return infoRequeridaRepCL{}, fmt.Errorf("HorarioService (colocacion_espacio_academico): %w", err)
+			if err != nil {
+				logs.Error(err)
+				return infoRequeridaRepCL{}, fmt.Errorf("HorarioService (colocacion_espacio_academico): %w", err)
+			}
+
+			resumenColocacion := models.ResumenColocacion{}
+			json.Unmarshal([]byte(resp.(map[string]interface{})["ResumenColocacionEspacioFisico"].(string)), &resumenColocacion)
+
+			datosCargaPlan[i].Horario = string(resumenColocacion.Colocacion)
+			datosCargaPlan[i].Sede_id = fmt.Sprint(resumenColocacion.EspacioFisico.SedeId)
+			datosCargaPlan[i].Edificio_id = fmt.Sprint(resumenColocacion.EspacioFisico.EdificioId)
+			datosCargaPlan[i].Salon_id = fmt.Sprint(resumenColocacion.EspacioFisico.SalonId)
+
 		}
-
-		resumenColocacion := models.ResumenColocacion{}
-		json.Unmarshal([]byte(resp.(map[string]interface{})["ResumenColocacionEspacioFisico"].(string)), &resumenColocacion)
-
-		datosCargaPlan[i].Horario = string(resumenColocacion.Colocacion)
-		datosCargaPlan[i].Sede_id = fmt.Sprint(resumenColocacion.EspacioFisico.SedeId)
-		datosCargaPlan[i].Edificio_id = fmt.Sprint(resumenColocacion.EspacioFisico.EdificioId)
-		datosCargaPlan[i].Salon_id = fmt.Sprint(resumenColocacion.EspacioFisico.SalonId)
-
-	}
 	*/
 
 	respPlan := PlanTrabajoDocente(docente, periodo, vinculacion)
@@ -277,6 +278,19 @@ func generarReporteCargaLectiva(infoRequerida infoRequeridaRepCL, cargaTipo stri
 		// ? Añadir carga o actividad o las dos segun CargaTipo
 		dia := int(horarioIs.Posicion.X/WidthX) * 5 // ? 5 => Cantidad de columnas por día cuadrícula excel
 		horaIni := int(horarioIs.Posicion.Y / HeightY)
+
+		if len(horarioIs.HoraFormato) > 0 && strings.Contains(horarioIs.HoraFormato, ":") {
+			horaParts := strings.Split(horarioIs.HoraFormato, " - ")
+			timeParts := strings.Split(horaParts[0], ":")
+			if len(timeParts) >= 2 {
+				if hh, errH := strconv.Atoi(strings.TrimSpace(timeParts[0])); errH == nil {
+					if mm, errM := strconv.Atoi(strings.TrimSpace(timeParts[1])); errM == nil {
+						horaIni = (hh - 6) * 4 + (mm / 15)
+					}
+				}
+			}
+		}
+
 		horaFin := horaIni + int(carga.Duracion*4) // ? duración * 4 es para contar en cuartos de hora
 		if horaFin >= horamax {
 			horamax = horaFin
