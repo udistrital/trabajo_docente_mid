@@ -706,32 +706,56 @@ func obtenerInformacionRequeridaRepCumplimiento(vigencia int64, proyectoFilter s
 
 		if plan_docente.Tipo_vinculacion_id == "293" || plan_docente.Tipo_vinculacion_id == "294" { // ? Carrera T Comp || Carrera Med T
 			if _, ok := PlanesPlanta[plan_docente.Docente_id]; ok {
+				obs := ""
+				if v, okv := datoResumen["observacion"]; okv && v != nil {
+					if s, okS := v.(string); okS {
+						obs = s
+					} else {
+						obs = fmt.Sprintf("%v", v)
+					}
+				}
 				PlanesPlanta[plan_docente.Docente_id]["actividades"] = formatoCumplimiento{
 					Nombre:      utils.FormatNameTercero(datos_identificacion.TerceroId),
 					Documento:   datos_identificacion.Numero,
 					Vinculacion: infoVinculacion.Nombre,
 					Actividades: agrupacionActividades,
-					Observacion: datoResumen["observacion"].(string),
+					Observacion: obs,
 				}
 			}
 		} else if plan_docente.Tipo_vinculacion_id == "296" { // ? T Comp Ocacional
 			if _, ok := PlanesTCO[plan_docente.Docente_id]; ok {
+				obs := ""
+				if v, okv := datoResumen["observacion"]; okv && v != nil {
+					if s, okS := v.(string); okS {
+						obs = s
+					} else {
+						obs = fmt.Sprintf("%v", v)
+					}
+				}
 				PlanesTCO[plan_docente.Docente_id]["actividades"] = formatoCumplimiento{
 					Nombre:      utils.FormatNameTercero(datos_identificacion.TerceroId),
 					Documento:   datos_identificacion.Numero,
 					Vinculacion: infoVinculacion.Nombre,
 					Actividades: agrupacionActividades,
-					Observacion: datoResumen["observacion"].(string),
+					Observacion: obs,
 				}
 			}
 		} else if plan_docente.Tipo_vinculacion_id == "298" { // ? Med T Ocacional
 			if _, ok := PlanesMTO[plan_docente.Docente_id]; ok {
+				obs := ""
+				if v, okv := datoResumen["observacion"]; okv && v != nil {
+					if s, okS := v.(string); okS {
+						obs = s
+					} else {
+						obs = fmt.Sprintf("%v", v)
+					}
+				}
 				PlanesMTO[plan_docente.Docente_id]["actividades"] = formatoCumplimiento{
 					Nombre:      utils.FormatNameTercero(datos_identificacion.TerceroId),
 					Documento:   datos_identificacion.Numero,
 					Vinculacion: infoVinculacion.Nombre,
 					Actividades: agrupacionActividades,
-					Observacion: datoResumen["observacion"].(string),
+					Observacion: obs,
 				}
 			}
 		}
