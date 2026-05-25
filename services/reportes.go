@@ -15,6 +15,7 @@ import (
 	"github.com/phpdave11/gofpdf"
 	"github.com/udistrital/trabajo_docente_mid/models"
 	"github.com/udistrital/trabajo_docente_mid/utils"
+	request "github.com/udistrital/utils_oas/request"
 	requestmanager "github.com/udistrital/utils_oas/requestresponse"
 	"github.com/udistrital/utils_oas/xlsx2pdf"
 	"github.com/xuri/excelize/v2"
@@ -54,6 +55,7 @@ func obtenerInformacionRequeridaRepCargaLectiva(docente, vinculacion, periodo in
 	}
 	datoIdenfTercero := models.DatosIdentificacion{}
 	utils.ParseData(resp.([]interface{})[0], &datoIdenfTercero)
+	logs.Info("TercerosService (datos_identificacion):", datoIdenfTercero)
 
 	resp, err = requestmanager.Get(beego.AppConfig.String("ParametroService")+fmt.Sprintf("parametro/%d", vinculacion), requestmanager.ParseResponseFormato1)
 	if err != nil {
@@ -62,6 +64,7 @@ func obtenerInformacionRequeridaRepCargaLectiva(docente, vinculacion, periodo in
 	}
 	datoVinculacion := models.Parametro{}
 	utils.ParseData(resp, &datoVinculacion)
+	logs.Info("ParametroService (parametro):", datoVinculacion)
 
 	resp, err = requestmanager.Get(beego.AppConfig.String("ParametroService")+fmt.Sprintf("periodo/%d", periodo), requestmanager.ParseResponseFormato1)
 	if err != nil {
@@ -70,6 +73,7 @@ func obtenerInformacionRequeridaRepCargaLectiva(docente, vinculacion, periodo in
 	}
 	datoPeriodo := models.Periodo{}
 	utils.ParseData(resp, &datoPeriodo)
+	logs.Info("ParametroService (periodo):", datoPeriodo)
 
 	resp, err = requestmanager.Get(beego.AppConfig.String("PlanTrabajoDocenteService")+
 		fmt.Sprintf("plan_docente?query=activo:true,docente_id:%d,tipo_vinculacion_id:%d,periodo_id:%d&limit=1", docente, vinculacion, periodo), requestmanager.ParseResponseFormato1)
@@ -79,9 +83,11 @@ func obtenerInformacionRequeridaRepCargaLectiva(docente, vinculacion, periodo in
 	}
 	datoPlanDocente := models.PlanDocente{}
 	utils.ParseData(resp.([]interface{})[0], &datoPlanDocente)
+	logs.Info("PlanTrabajoDocenteService (plan_docente):", datoPlanDocente)
 
 	datoResumen := resumenJson{}
 	json.Unmarshal([]byte(datoPlanDocente.Resumen), &datoResumen)
+	logs.Info("Resumen (decodificado):", datoResumen)
 
 	resp, err = requestmanager.Get(beego.AppConfig.String("PlanTrabajoDocenteService")+
 		fmt.Sprintf("carga_plan?query=activo:true,plan_docente_id:%s,&limit=0", datoPlanDocente.Id), requestmanager.ParseResponseFormato1)
@@ -91,7 +97,9 @@ func obtenerInformacionRequeridaRepCargaLectiva(docente, vinculacion, periodo in
 	}
 	datosCargaPlan := []models.CargaPlan{}
 	utils.ParseData(resp, &datosCargaPlan)
+	logs.Info("PlanTrabajoDocenteService (carga_plan):", datosCargaPlan)
 
+	/*
 	for i := 0; i < len(datosCargaPlan); i++ {
 		resp, err := requestmanager.Get(beego.AppConfig.String("HorarioService")+
 			fmt.Sprintf("colocacion-espacio-academico/%s", datosCargaPlan[i].Colocacion_espacio_academico_id), requestmanager.ParseResponseFormato2)
@@ -110,6 +118,69 @@ func obtenerInformacionRequeridaRepCargaLectiva(docente, vinculacion, periodo in
 		datosCargaPlan[i].Salon_id = fmt.Sprint(resumenColocacion.EspacioFisico.SalonId)
 
 	}
+	*/
+
+	respPlan := PlanTrabajoDocente(docente, periodo, vinculacion)
+	if !respPlan.Success {
+		errPlan := fmt.Errorf("%v", respPlan.Message)
+		logs.Error(errPlan)
+		return infoRequeridaRepCL{}, fmt.Errorf("PlanTrabajoDocente (plan): %w", errPlan)
+	}
+	logs.Info("PlanTrabajoDocente (plan) Respuesta obtenida correctamente")
+
+	var dataPlan map[string]interface{}
+	if respPlanMap, ok := respPlan.Data.(map[string]interface{}); ok {
+		dataPlan = respPlanMap
+	}
+
+	var arrCargaPlan [][]map[string]interface{}
+	if cargaData, ok := dataPlan["carga"]; ok {
+		bytesCarga, _ := json.Marshal(cargaData)
+		json.Unmarshal(bytesCarga, &arrCargaPlan)
+	}
+
+	mapEspacios := make(map[string]map[string]interface{})
+	for _, arr := range arrCargaPlan {
+		for _, item := range arr {
+			if idEsp, ok := item["colocacion_espacio_academico_id"].(string); ok {
+				mapEspacios[idEsp] = item
+			}
+		}
+	}
+	logs.Info("Se encontraron", len(mapEspacios), "elementos en 'carga' del plan")
+	logs.Info("Procesando actualización de espacios y horarios para", len(datosCargaPlan), "registros de carga_plan")
+
+	for i := 0; i < len(datosCargaPlan); i++ {
+		datosCargaPlan[i].Sede_id = "0"
+		datosCargaPlan[i].Edificio_id = "0"
+		datosCargaPlan[i].Salon_id = "0"
+
+		if item, ok := mapEspacios[datosCargaPlan[i].Colocacion_espacio_academico_id]; ok {
+			horarioBytes, _ := json.Marshal(item["horario"])
+			datosCargaPlan[i].Horario = string(horarioBytes)
+
+			if sedeMap, ok := item["sede"].(map[string]interface{}); ok {
+				if id, ok := sedeMap["Id"]; ok {
+					datosCargaPlan[i].Sede_id = fmt.Sprint(id)
+				}
+			}
+
+			if edifMap, ok := item["edificio"].(map[string]interface{}); ok {
+				if id, ok := edifMap["Id"]; ok {
+					datosCargaPlan[i].Edificio_id = fmt.Sprint(id)
+				}
+			}
+
+			if salonMap, ok := item["salon"].(map[string]interface{}); ok {
+				if id, ok := salonMap["Id"]; ok {
+					datosCargaPlan[i].Salon_id = fmt.Sprint(id)
+				}
+			}
+		} else {
+			logs.Info("No se encontró coincidencia en el plan para colocacion_espacio_academico_id:", datosCargaPlan[i].Colocacion_espacio_academico_id)
+		}
+	}
+	logs.Info("Actualización de datos de carga_plan finalizada")
 
 	return infoRequeridaRepCL{datoIdenfTercero, datoVinculacion, datoPeriodo, datoPlanDocente, datoResumen, datosCargaPlan}, nil
 }
@@ -219,10 +290,17 @@ func generarReporteCargaLectiva(infoRequerida infoRequeridaRepCL, cargaTipo stri
 			resp, err := requestmanager.Get(beego.AppConfig.String("EspaciosAcademicosService")+
 				fmt.Sprintf("espacio-academico/%s", carga.Espacio_academico_id), requestmanager.ParseResponseFormato1)
 			if err != nil {
-				logs.Error(err)
-				return requestmanager.APIResponseDTO(false, 404, nil, "EspaciosAcademicosService (espacio-academico): "+err.Error())
+				var responseXML informacionCursoXML
+				url := beego.AppConfig.String("AcademicaEspacioAcademicoService") + "informacion_curso/" + carga.Espacio_academico_id
+				if errV1 := request.GetXml(url, &responseXML); errV1 == nil && strings.TrimSpace(responseXML.Detalle.Id) != "" {
+					nombreCarga = responseXML.Detalle.EspacioAcademico + " - " + responseXML.Detalle.Grupo
+				} else {
+					logs.Error(err)
+					return requestmanager.APIResponseDTO(false, 404, nil, "EspaciosAcademicosService (espacio-academico): "+err.Error())
+				}
+			} else {
+				nombreCarga = resp.(map[string]interface{})["nombre"].(string) + " - " + resp.(map[string]interface{})["grupo"].(string)
 			}
-			nombreCarga = resp.(map[string]interface{})["nombre"].(string) + " - " + resp.(map[string]interface{})["grupo"].(string)
 			template.SetCellStyle(sheet, ini, fin, CargaStyle)
 		} else if horarioIs.TipoCarga == Actividades {
 			resp, err := requestmanager.Get(beego.AppConfig.String("PlanTrabajoDocenteService")+
@@ -1107,6 +1185,14 @@ func generarReporteCumplimiento(infoRequerida infoRequeridaCumplimiento) request
 
 // funciones transversales
 func consultarInfoEspacioFisico(sede_id, edificio_id, salon_id string) (interface{}, error) {
+	if sede_id == "0" || sede_id == "NA" || sede_id == "" {
+		return map[string]interface{}{
+			"sede":     map[string]interface{}{"Id": 0, "Nombre": "No asignado", "CodigoAbreviacion": "NA"},
+			"edificio": map[string]interface{}{"Id": 0, "Nombre": "No asignado", "CodigoAbreviacion": "NA"},
+			"salon":    map[string]interface{}{"Id": 0, "Nombre": "No asignado", "CodigoAbreviacion": "NA"},
+		}, nil
+	}
+
 	sede, err := requestmanager.Get(beego.AppConfig.String("OikosService")+fmt.Sprintf("espacio_fisico?query=Id:%s&fields=Id,Nombre,CodigoAbreviacion&limit=1", sede_id),
 		requestmanager.ParseResonseNoFormat)
 
