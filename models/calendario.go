@@ -24,3 +24,24 @@ type CalendarioEventoXML struct {
 	CodigoFacultad string `xml:"codigo_facultad"`
 	Year           string `xml:"anio"`
 }
+
+type FacultadesDecanoXML struct {
+	Decanos []FacultadDecanoXML `xml:"decano"`
+}
+
+type FacultadDecanoXML struct {
+	FechaDesde     string `xml:"fecha_desde"`
+	CodigoFacultad string `xml:"codigo_facultad"`
+	Nombre         string `xml:"nombre"`
+	FechaHasta     string `xml:"fecha_hasta"`
+	Facultad       string `xml:"facultad"`
+}
+
+type ProyectosFacultadXML struct {
+	Proyectos []ProyectoFacultadXML `xml:"proyecto"`
+}
+
+type ProyectoFacultadXML struct {
+	NombreProyectoCurricular string `xml:"nombre_proyecto_curricular"`
+	CodigoProyectoCurricular string `xml:"codigo_proyecto_curricular"`
+}

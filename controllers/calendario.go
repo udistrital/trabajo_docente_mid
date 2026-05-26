@@ -16,6 +16,7 @@ type CalendarioController struct {
 func (c *CalendarioController) URLMapping() {
 	c.Mapping("GetEventos", c.GetEventos)
 	c.Mapping("GetCalendariosEventos", c.GetCalendariosEventos)
+	c.Mapping("GetProyectosFacultadDecano", c.GetProyectosFacultadDecano)
 }
 
 // GetEventos ...
@@ -50,17 +51,40 @@ func (c *CalendarioController) GetCalendariosEventos() {
 
 	documento := c.GetString("documento")
 	codigoEvento := c.GetString("codigo_evento")
+	proyecto := c.GetString("proyecto")
 
 	if documento == "" || codigoEvento == "" {
 		logs.Error("documento o codigo_evento vacio")
 		c.Data["json"] = requestmanager.APIResponseDTO(false, 400, nil, "Error: Parámetro(s) con valores no válidos")
 	} else {
-		resultado := services.ConsultaCalendariosEventos(documento, codigoEvento)
+		resultado := services.ConsultaCalendariosEventos(documento, codigoEvento, proyecto)
 		c.Data["json"] = resultado
 	}
 	// El código de negocio va en el body; se usa 200 para evitar que Beego
 	// intercepte 4xx/5xx e intente renderizar templates de error inexistentes.
 	c.Ctx.Output.SetStatus(200)
 
+	c.ServeJSON()
+}
+
+// GetProyectosFacultadDecano ...
+// @Title GetProyectosFacultadDecano
+// @Description Consulta la facultad activa del decano y retorna los proyectos de PREGRADO y POSGRADO
+// @Param   documento   query   string  true        "Documento del decano"
+// @Success 200 {object} []map[string]interface{}
+// @Failure 404 no record exist
+// @router /proyectos_facultad_decano [get]
+func (c *CalendarioController) GetProyectosFacultadDecano() {
+	documento := c.GetString("documento")
+
+	if documento == "" {
+		logs.Error("documento vacio")
+		c.Data["json"] = requestmanager.APIResponseDTO(false, 400, nil, "Error: Parámetro(s) con valores no válidos")
+	} else {
+		resultado := services.ConsultaProyectosFacultadDecano(documento)
+		c.Data["json"] = resultado
+	}
+
+	c.Ctx.Output.SetStatus(200)
 	c.ServeJSON()
 }

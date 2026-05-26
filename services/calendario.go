@@ -3,6 +3,7 @@ package services
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/astaxie/beego"
 	"github.com/astaxie/beego/logs"
@@ -36,14 +37,71 @@ func ListaEventos() requestmanager.APIResponse {
 	return requestmanager.APIResponseDTO(true, 200, response)
 }
 
-// ConsultaCalendariosEventos cruza la información de un evento con los proyectos curriculares del coordinador o docente
-func ConsultaCalendariosEventos(documento string, codigoEvento string) requestmanager.APIResponse {
-	proyectos, err := ObtenerDetalleProyectosCurriculares(documento)
+// ConsultaProyectosFacultadDecano obtiene y unifica los proyectos de las facultades activas del decano
+func ConsultaProyectosFacultadDecano(documento string) requestmanager.APIResponse {
+	facultades, err := obtenerFacultadesActivasDecano(documento)
 	if err != nil {
-		logs.Error("Error al obtener proyectos curriculares del coordinador o docente: ", err)
-		return requestmanager.APIResponseDTO(false, 404, nil, "No se encontró código de proyecto curricular para el coordinador o docente")
+		logs.Error("Error al obtener facultades del decano: ", err)
+		return requestmanager.APIResponseDTO(false, 404, nil, "No se encontró facultad activa para el decano")
 	}
-	logs.Info("Proyectos curriculares encontrados para el coordinador o docente: ", proyectos)
+
+	proyectos := make([]map[string]interface{}, 0)
+	vistos := make(map[string]bool)
+	niveles := []string{"PREGRADO", "POSGRADO"}
+
+	for _, facultad := range facultades {
+		for _, nivel := range niveles {
+			listaProyectos, err := obtenerProyectosFacultad(facultad.CodigoFacultad, nivel)
+			if err != nil {
+				logs.Error("Error consultando proyectos de facultad ", facultad.CodigoFacultad, " nivel ", nivel, ": ", err)
+				continue
+			}
+
+			for _, proyecto := range listaProyectos {
+				codigoProyecto := strings.TrimSpace(proyecto.CodigoProyectoCurricular)
+				if codigoProyecto == "" || vistos[codigoProyecto] {
+					continue
+				}
+
+				vistos[codigoProyecto] = true
+				proyectos = append(proyectos, map[string]interface{}{
+					"Id":             codigoProyecto,
+					"Codigo":         codigoProyecto,
+					"Nombre":         strings.TrimSpace(proyecto.NombreProyectoCurricular),
+					"CodigoFacultad": strings.TrimSpace(facultad.CodigoFacultad),
+					"Facultad":       strings.TrimSpace(facultad.Facultad),
+					"Nivel":          nivel,
+				})
+			}
+		}
+	}
+
+	if len(proyectos) == 0 {
+		return requestmanager.APIResponseDTO(false, 404, nil, "No se encontraron proyectos para la facultad del decano")
+	}
+
+	return requestmanager.APIResponseDTO(true, 200, proyectos)
+}
+
+// ConsultaCalendariosEventos cruza la información de un evento con los proyectos curriculares del coordinador o docente
+func ConsultaCalendariosEventos(documento string, codigoEvento string, proyecto string) requestmanager.APIResponse {
+	proyectos := make([]map[string]interface{}, 0)
+
+	proyecto = strings.TrimSpace(proyecto)
+	if proyecto != "" {
+		proyectos = append(proyectos, map[string]interface{}{
+			"codigo_carrera": proyecto,
+			"nombre_carrera": proyecto,
+		})
+	} else {
+		var err error
+		proyectos, err = ObtenerDetalleProyectosCurriculares(documento)
+		if err != nil {
+			logs.Error("Error al obtener proyectos curriculares del coordinador o docente: ", err)
+			return requestmanager.APIResponseDTO(false, 404, nil, "No se encontró código de proyecto curricular para el coordinador o docente")
+		}
+		logs.Info("Proyectos curriculares encontrados para el coordinador o docente: ", proyectos)
+	}
 
 	var resultados []map[string]interface{}
 	urlCalendarioBase := beego.AppConfig.String("AcademicaEspacioAcademicoService") + "calendario_eventos/"
@@ -94,6 +152,82 @@ type proyectosCurricularesXML struct {
 type proyectoCurricularXML struct {
 	CodigoCarrera string `xml:"codigo_carrera"`
 	NombreCarrera string `xml:"nombre_carrera"`
+}
+
+func obtenerFacultadesActivasDecano(documento string) ([]models.FacultadDecanoXML, error) {
+	url := beego.AppConfig.String("AcademicaEspacioAcademicoService") + "decano/" + strings.TrimSpace(documento)
+
+	var responseXML models.FacultadesDecanoXML
+	if err := request.GetXml(url, &responseXML); err != nil {
+		return nil, err
+	}
+
+	facultades := make([]models.FacultadDecanoXML, 0, len(responseXML.Decanos))
+	vistas := make(map[string]bool)
+	ahora := time.Now()
+
+	for _, decano := range responseXML.Decanos {
+		codigoFacultad := strings.TrimSpace(decano.CodigoFacultad)
+		if codigoFacultad == "" || vistas[codigoFacultad] {
+			continue
+		}
+
+		if fechaDesde, err := parseAcademicaDate(decano.FechaDesde); err == nil && fechaDesde.After(ahora) {
+			continue
+		}
+
+		if fechaHasta, err := parseAcademicaDate(decano.FechaHasta); err == nil && fechaHasta.Before(ahora) {
+			continue
+		}
+
+		facultades = append(facultades, models.FacultadDecanoXML{
+			FechaDesde:     decano.FechaDesde,
+			CodigoFacultad: codigoFacultad,
+			Nombre:         strings.TrimSpace(decano.Nombre),
+			FechaHasta:     decano.FechaHasta,
+			Facultad:       strings.TrimSpace(decano.Facultad),
+		})
+		vistas[codigoFacultad] = true
+	}
+
+	if len(facultades) == 0 {
+		return nil, fmt.Errorf("no se encontraron facultades activas para el decano")
+	}
+
+	return facultades, nil
+}
+
+func obtenerProyectosFacultad(codigoFacultad string, nivel string) ([]models.ProyectoFacultadXML, error) {
+	url := beego.AppConfig.String("AcademicaEspacioAcademicoService") + "proyectos_facultad/" + strings.TrimSpace(codigoFacultad) + "/" + strings.TrimSpace(nivel)
+
+	var responseXML models.ProyectosFacultadXML
+	if err := request.GetXml(url, &responseXML); err != nil {
+		return nil, err
+	}
+
+	return responseXML.Proyectos, nil
+}
+
+func parseAcademicaDate(value string) (time.Time, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return time.Time{}, fmt.Errorf("fecha vacia")
+	}
+
+	layouts := []string{
+		time.RFC3339Nano,
+		time.RFC3339,
+		"2006-01-02T15:04:05.000-07:00",
+		"2006-01-02T15:04:05-07:00",
+	}
+
+	for _, layout := range layouts {
+		if parsed, err := time.Parse(layout, value); err == nil {
+			return parsed, nil
+		}
+	}
+
+	return time.Time{}, fmt.Errorf("formato de fecha no soportado: %s", value)
 }
 
 type datosCollectionXML struct {
@@ -153,9 +287,6 @@ func ObtenerDetalleProyectosCurriculares(documento string) ([]map[string]interfa
 			return nil, fmt.Errorf("no se encontro codigo_carrera para el usuario")
 		}
 	}
-
-	//ESPACIO PARA EN EL FUTURO IMPLEMENTAR LA BUSQUEDA DE PROYECTOS CURRICULARES DE UN DECANO
-	//
 
 	return proyectos, nil
 }
