@@ -72,8 +72,6 @@ func obtenerInformacionRequeridaRepCargaLectiva(docente, vinculacion, periodo in
 		logs.Error(err)
 		return infoRequeridaRepCL{}, fmt.Errorf("TercerosService (datos_identificacion): %w", err)
 	}
-	datoIdenfTercero := models.DatosIdentificacion{}
-	utils.ParseData(resp.([]interface{})[0], &datoIdenfTercero)
 	logs.Info("TercerosService (datos_identificacion):", datoIdenfTercero)
 
 	resp, err := requestmanager.Get(beego.AppConfig.String("ParametroService")+fmt.Sprintf("parametro/%d", vinculacion), requestmanager.ParseResponseFormato1)
