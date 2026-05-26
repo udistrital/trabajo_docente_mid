@@ -285,7 +285,7 @@ func generarReporteCargaLectiva(infoRequerida infoRequeridaRepCL, cargaTipo stri
 			if len(timeParts) >= 2 {
 				if hh, errH := strconv.Atoi(strings.TrimSpace(timeParts[0])); errH == nil {
 					if mm, errM := strconv.Atoi(strings.TrimSpace(timeParts[1])); errM == nil {
-						horaIni = (hh - 6) * 4 + (mm / 15)
+						horaIni = (hh-6)*4 + (mm / 15)
 					}
 				}
 			}
