@@ -103,7 +103,19 @@ func obtenerInformacionRequeridaRepCargaLectiva(docente, vinculacion, periodo in
 	logs.Info("PlanTrabajoDocenteService (plan_docente):", datoPlanDocente)
 
 	datoResumen := resumenJson{}
-	json.Unmarshal([]byte(datoPlanDocente.Resumen), &datoResumen)
+	if firstPlan, ok := resp.([]interface{})[0].(map[string]interface{}); ok {
+		if resumenVal, okRes := firstPlan["resumen"]; okRes && resumenVal != nil {
+			switch val := resumenVal.(type) {
+			case string:
+				datoPlanDocente.Resumen = val
+				json.Unmarshal([]byte(val), &datoResumen)
+			case map[string]interface{}:
+				resumenBytes, _ := json.Marshal(val)
+				datoPlanDocente.Resumen = string(resumenBytes)
+				json.Unmarshal(resumenBytes, &datoResumen)
+			}
+		}
+	}
 	logs.Info("Resumen (decodificado):", datoResumen)
 
 	resp, err = requestmanager.Get(beego.AppConfig.String("PlanTrabajoDocenteService")+
@@ -360,11 +372,29 @@ func generarReporteCargaLectiva(infoRequerida infoRequeridaRepCL, cargaTipo stri
 	}
 
 	// ? resumen
+	var totalLectivas float64
+	var totalActividades float64
+	for _, carga := range infoRequerida.datosCargaPlan {
+		var h horario
+		json.Unmarshal([]byte(carga.Horario), &h)
+		if h.TipoCarga == CargaLectiva {
+			totalLectivas += carga.Duracion
+		} else if h.TipoCarga == Actividades {
+			totalActividades += carga.Duracion
+		}
+	}
+
+	// Fallback to static values if dynamic sum is zero and static values are non-zero
+	if totalLectivas == 0 && totalActividades == 0 {
+		totalLectivas = infoRequerida.datoResumen.HorasLectivas
+		totalActividades = infoRequerida.datoResumen.HorasActividades
+	}
+
 	template.SetCellValue(sheet, "M94", vinculacionFormateado)
-	template.SetCellValue(sheet, "AD94", infoRequerida.datoResumen.HorasLectivas)
+	template.SetCellValue(sheet, "AD94", totalLectivas)
 	template.SetCellValue(sheet, "M95", vinculacionFormateado)
-	template.SetCellValue(sheet, "AD95", infoRequerida.datoResumen.HorasActividades)
-	template.SetCellValue(sheet, "AD96", infoRequerida.datoResumen.HorasLectivas+infoRequerida.datoResumen.HorasActividades)
+	template.SetCellValue(sheet, "AD95", totalActividades)
+	template.SetCellValue(sheet, "AD96", totalLectivas+totalActividades)
 	template.SetCellValue(sheet, "B99", infoRequerida.datoResumen.Observacion)
 
 	if cargaTipo == "C" { // ? si carga se borra actividades y total
