@@ -1,12 +1,17 @@
 package services
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/astaxie/beego"
 	"github.com/astaxie/beego/logs"
+	"github.com/k0kubun/pp"
 	"github.com/udistrital/trabajo_docente_mid/models"
 	"github.com/udistrital/trabajo_docente_mid/utils"
 	request "github.com/udistrital/utils_oas/request"
@@ -202,7 +207,7 @@ func DefinePTD(body map[string]interface{}) requestmanager.APIResponse {
 }
 
 // AprobarPlanesTrabajoDocente aprueba en lote los planes seleccionados desde verificar PTD.
-func AprobarPlanesTrabajoDocente(body map[string]interface{}) requestmanager.APIResponse {
+func AprobarPlanesTrabajoDocente(body map[string]interface{}, authHeader string) requestmanager.APIResponse {
 	planDocenteIDs := extraerIDsPlanoDocente(body["plan_docente_ids"])
 	if len(planDocenteIDs) == 0 {
 		return requestmanager.APIResponseDTO(false, 400, nil, "No se recibieron planes para aprobar")
@@ -224,7 +229,9 @@ func AprobarPlanesTrabajoDocente(body map[string]interface{}) requestmanager.API
 	fallidos := 0
 
 	for _, planDocenteID := range planDocenteIDs {
-		if err := aprobarPlanDocente(planDocenteID, estadoAprobadoID, observacion, responsableID); err != nil {
+		// Propagamos el token de autorización del usuario para que la firma electrónica
+		// y el cargue de soporte PTD en Nuxeo se realicen bajo su contexto autenticado.
+		if err := aprobarPlanDocente(planDocenteID, estadoAprobadoID, observacion, responsableID, authHeader); err != nil {
 			fallidos++
 			resultados = append(resultados, map[string]interface{}{
 				"id":       planDocenteID,
@@ -305,7 +312,7 @@ func obtenerEstadoPlanIDPorCodigo(codigo string) (string, error) {
 	return estadoID, nil
 }
 
-func aprobarPlanDocente(planDocenteID, estadoAprobadoID, observacion string, responsableID interface{}) error {
+func aprobarPlanDocente(planDocenteID, estadoAprobadoID, observacion string, responsableID interface{}, authHeader string) error {
 	var planDocente map[string]interface{}
 	urlPlanDocente := beego.AppConfig.String("PlanTrabajoDocenteService") + "plan_docente/" + planDocenteID
 	if err := request.GetJson(urlPlanDocente, &planDocente); err != nil {
@@ -330,6 +337,177 @@ func aprobarPlanDocente(planDocenteID, estadoAprobadoID, observacion string, res
 
 	data["respuesta"] = toJSONString(respuesta)
 	data["estado_plan_id"] = estadoAprobadoID
+
+	// -- INICIO LOGICA DE FIRMA ELECTRÓNICA Y ALMACENAMIENTO DE SOPORTE --
+	logs.Info(fmt.Sprintf("Iniciando proceso de firma electrónica para PlanDocenteID: %s, DocenteID: %v, ResponsableID: %v", planDocenteID, data["docente_id"], responsableID))
+
+	// 1. Convertir y parsear los identificadores del plan docente (docente, vinculación, periodo) a int64
+	// para poder pasárselos como argumentos a la función de generación del reporte.
+	docenteVal, err1 := strconv.ParseInt(fmt.Sprintf("%v", data["docente_id"]), 10, 64)
+	vinculacionVal, err2 := strconv.ParseInt(fmt.Sprintf("%v", data["tipo_vinculacion_id"]), 10, 64)
+	periodoVal, err3 := strconv.ParseInt(fmt.Sprintf("%v", data["periodo_id"]), 10, 64)
+	if err1 != nil || err2 != nil || err3 != nil {
+		logs.Error(fmt.Sprintf("[Firma Electrónica] Error al parsear identificadores del plan docente para firma: %v, %v, %v", err1, err2, err3))
+		return fmt.Errorf("error al parsear identificadores del plan docente para firma: %v, %v, %v", err1, err2, err3)
+	}
+
+	// 2. Generar el reporte del Plan de Trabajo Docente (PTD) en formato PDF.
+	// Se pasa el tipo de carga "CA" (Carga Académica + Actividades).
+	logs.Info(fmt.Sprintf("[Firma Electrónica] Generando reporte de carga académica para Docente: %d, Vinculación: %d, Periodo: %d", docenteVal, vinculacionVal, periodoVal))
+	respReporte := RepCargaLectiva(docenteVal, vinculacionVal, periodoVal, "CA")
+	if !respReporte.Success {
+		logs.Error(fmt.Sprintf("[Firma Electrónica] Error al generar reporte para firma: %v", respReporte.Message))
+		return fmt.Errorf("error al generar reporte para firma: %v", respReporte.Message)
+	}
+
+	// 3. Extraer la cadena en formato Base64 del PDF generado a partir de la respuesta del reporte.
+	reporteData, ok := respReporte.Data.(map[string]interface{})
+	if !ok {
+		logs.Error("[Firma Electrónica] Formato de reporte de carga lectiva inválido")
+		return fmt.Errorf("formato de reporte de carga lectiva inválido")
+	}
+
+	pdfBase64, ok := reporteData["pdf"].(string)
+	if !ok {
+		logs.Error("[Firma Electrónica] No se encontró PDF en el reporte generado")
+		return fmt.Errorf("no se encontró PDF en el reporte generado")
+	}
+	logs.Info("[Firma Electrónica] Reporte PDF base64 generado exitosamente")
+
+	// 4. Consultar los datos de identificación del Docente y del Coordinador (Responsable)
+	// en TercerosService para incluirlos como firmantes oficiales del documento.
+	docenteInfo, errDoc := obtenerDocumentoIdentificacionDocente(fmt.Sprintf("%v", data["docente_id"]))
+	if errDoc != nil {
+		logs.Error(fmt.Sprintf("[Firma Electrónica] Error al obtener identificación del docente: %v", errDoc))
+		return fmt.Errorf("error al obtener identificación del docente: %v", errDoc)
+	}
+
+	responsableInfo, errResp := obtenerDocumentoIdentificacionDocente(fmt.Sprintf("%v", responsableID))
+	if errResp != nil {
+		logs.Error(fmt.Sprintf("[Firma Electrónica] Error al obtener identificación del responsable: %v", errResp))
+		return fmt.Errorf("error al obtener identificación del responsable: %v", errResp)
+	}
+
+	// 5. Estructurar los firmantes del documento según el formato que requiere el microservicio de firma electrónica.
+	firmantes := []map[string]interface{}{
+		{
+			"nombre":         docenteInfo.TerceroId.NombreCompleto,
+			"cargo":          "Docente",
+			"tipoId":         docenteInfo.TipoDocumentoId.CodigoAbreviacion,
+			"identificacion": docenteInfo.Numero,
+		},
+		{
+			"nombre":         responsableInfo.TerceroId.NombreCompleto,
+			"cargo":          "Coordinador",
+			"tipoId":         responsableInfo.TipoDocumentoId.CodigoAbreviacion,
+			"identificacion": responsableInfo.Numero,
+		},
+	}
+	logs.Info(fmt.Sprintf("[Firma Electrónica] Firmas configuradas: Docente (%s) y Coordinador (%s)", docenteInfo.TerceroId.NombreCompleto, responsableInfo.TerceroId.NombreCompleto))
+
+	// 6. Preparar el cuerpo del mensaje (payload) para consumir el microservicio de firma electrónica.
+	// El tipo de documento 73 corresponde por defecto al identificador de soporte de PTD.
+	nombreArchivo := fmt.Sprintf("PTD_Firmado_IdDoce_%v_IdCoor_%v", data["docente_id"], responsableID)
+	sendFileDataandSigners := []map[string]interface{}{
+		{
+			"IdTipoDocumento": 73,
+			"nombre":          nombreArchivo,
+			"metadatos":       map[string]interface{}{},
+			"descripcion":     "",
+			"file":            pdfBase64,
+			"firmantes":       firmantes,
+			"representantes":  []interface{}{},
+		},
+	}
+
+	// Imprimir el body para depurar e inspeccionar la estructura enviada sin el base64 que es muy extenso
+	bodyImpresion := make([]map[string]interface{}, len(sendFileDataandSigners))
+	for i, item := range sendFileDataandSigners {
+		itemCopy := make(map[string]interface{})
+		for k, v := range item {
+			if k == "file" {
+				itemCopy[k] = "<BASE64_Omitido_por_Longitud>"
+			} else {
+				itemCopy[k] = v
+			}
+		}
+		bodyImpresion[i] = itemCopy
+	}
+	logs.Info("[Firma Electrónica] Payload JSON enviado (sin base64):")
+	pp.Println(bodyImpresion)
+
+	// 7. Consumir el endpoint del FirmaElectronicaMidService para estampar la firma electrónica
+	// y almacenar el documento en el Gestor Documental Nuxeo.
+	var respGD interface{}
+
+	// =========================================================================
+	// OPCIÓN 1: Consumo Directo por Intranet (pruebasapi2 port 8560) - ACTIVO
+	// =========================================================================
+	// Nota: En pruebasapi2 (puerto 8560), el microservicio es gestor_documental_mid, por lo que el path es "document/firma_electronica".
+	// Si se utiliza el microservicio independiente firma_electronica_mid directo en la intranet, se puede usar "firma_electronica".
+
+	//urlFirmaDirecta := beego.AppConfig.String("FirmaElectronicaMidService") + "document/firma_electronica"
+	urlFirmaDirecta := beego.AppConfig.String("FirmaElectronicaMidService") + "firma_electronica"
+	logs.Info(fmt.Sprintf("[Firma Electrónica] Enviando petición directa a servicio: %s", urlFirmaDirecta))
+	if err := request.SendJson(urlFirmaDirecta, "POST", &respGD, sendFileDataandSigners); err != nil {
+		logs.Error(fmt.Sprintf("[Firma Electrónica] Error al enviar firma electrónica directa: %v", err))
+		return fmt.Errorf("error al enviar firma electrónica directa: %v", err)
+	}
+
+	// =========================================================================
+	// OPCIÓN 2: Consumo a través de WSO2 Gateway (Con propagación de Token) - COMENTADO
+	// =========================================================================
+
+	/*
+		urlFirmaGateway := beego.AppConfig.String("FirmaElectronicaMidService") + "firma_electronica"
+		logs.Info(fmt.Sprintf("[Firma Electrónica] Enviando petición a Gateway WSO2: %s", urlFirmaGateway))
+		if err := sendJsonWithAuth(urlFirmaGateway, "POST", &respGD, sendFileDataandSigners, authHeader); err != nil {
+			logs.Error(fmt.Sprintf("[Firma Electrónica] Error al enviar firma electrónica vía WSO2 Gateway: %v", err))
+			return fmt.Errorf("error al enviar firma electrónica vía WSO2 Gateway: %v", err)
+		}
+	*/
+
+	// 8. Procesar y extraer el ID del documento firmado obtenido de la respuesta del servicio de firma.
+	// Se soporta de forma segura tanto respuestas mapeadas {"res": {"Id": 123}} como arreglos de las mismas [{"res": {"Id": 123}}].
+	var documentID int
+	idFound := false
+
+	if respGDMap, ok := respGD.(map[string]interface{}); ok {
+		if res, ok := respGDMap["res"].(map[string]interface{}); ok {
+			if idVal, ok := res["Id"]; ok {
+				if idFloat, ok := idVal.(float64); ok {
+					documentID = int(idFloat)
+					idFound = true
+				}
+			}
+		}
+	} else if respGDSlice, ok := respGD.([]interface{}); ok && len(respGDSlice) > 0 {
+		if firstElem, ok := respGDSlice[0].(map[string]interface{}); ok {
+			if res, ok := firstElem["res"].(map[string]interface{}); ok {
+				if idVal, ok := res["Id"]; ok {
+					if idFloat, ok := idVal.(float64); ok {
+						documentID = int(idFloat)
+						idFound = true
+					}
+				}
+			} else if idVal, ok := firstElem["Id"]; ok {
+				if idFloat, ok := idVal.(float64); ok {
+					documentID = int(idFloat)
+					idFound = true
+				}
+			}
+		}
+	}
+
+	if !idFound {
+		logs.Error(fmt.Sprintf("[Firma Electrónica] No se pudo obtener el ID del documento firmado de la respuesta: %v", respGD))
+		return fmt.Errorf("no se pudo obtener el ID del documento firmado de la respuesta: %v", respGD)
+	}
+
+	// 9. Asignar el ID del documento firmado al campo de soporte documental del plan
+	data["soporte_documental"] = strconv.Itoa(documentID)
+	logs.Info(fmt.Sprintf("[Firma Electrónica] Firma completada exitosamente. ID de Soporte Documental: %d", documentID))
+	// -- FIN LOGICA DE FIRMA ELECTRÓNICA --
 
 	var planDocentePut map[string]interface{}
 	if err := request.SendJson(urlPlanDocente, "PUT", &planDocentePut, data); err != nil {
@@ -1054,4 +1232,38 @@ func consultarEspaciosAcademicosInfoPadre(docente, periodo, vinculacion int64) (
 		espacios = append(espacios, espacioacademico[0])
 	}
 	return espacios, nil
+}
+
+func sendJsonWithAuth(url string, method string, target interface{}, datajson interface{}, authHeader string) error {
+	b := new(bytes.Buffer)
+	if datajson != nil {
+		if err := json.NewEncoder(b).Encode(datajson); err != nil {
+			return fmt.Errorf("error al codificar JSON: %v", err)
+		}
+	}
+
+	client := &http.Client{}
+	req, err := http.NewRequest(method, url, b)
+	if err != nil {
+		return fmt.Errorf("error al crear petición: %v", err)
+	}
+
+	if authHeader != "" {
+		req.Header.Set("Authorization", authHeader)
+	}
+	req.Header.Set("Content-Type", "application/json; charset=UTF-8")
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("error al realizar petición HTTP: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("el servicio respondió con código %d: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	return json.NewDecoder(resp.Body).Decode(target)
 }

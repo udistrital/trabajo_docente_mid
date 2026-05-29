@@ -99,7 +99,10 @@ func (c *PlanController) AprobarPlanesTrabajoDocente() {
 		return
 	}
 
-	resultado := services.AprobarPlanesTrabajoDocente(body)
+	// Extraemos y propagamos el token de autorización para permitir que el microservicio
+	// de firma electrónica pueda autenticarse de forma transparente mediante WSO2 y con Nuxeo.
+	authHeader := c.Ctx.Input.Header("Authorization")
+	resultado := services.AprobarPlanesTrabajoDocente(body, authHeader)
 	c.Data["json"] = resultado
 	c.Ctx.Output.SetStatus(resultado.Status)
 	c.ServeJSON()
