@@ -409,10 +409,10 @@ func aprobarPlanDocente(planDocenteID, estadoAprobadoID, observacion string, res
 	tipoDocumentoID := 73 // Fallback por defecto a 73 por seguridad
 	var resTipoDoc []map[string]interface{}
 	urlTipoDoc := beego.AppConfig.String("DocumentoService") + "v1/tipo_documento?query=CodigoAbreviacion:SOPPLTRDOC,Activo:true&fields=Id&limit=1"
-	
+
 	fmt.Printf("[Firma Electrónica - Console Log] Consultando TipoDocumento en: %s\n", urlTipoDoc)
 	logs.Info(fmt.Sprintf("[Firma Electrónica] Consultando TipoDocumento en: %s", urlTipoDoc))
-	
+
 	if errTipoDoc := request.GetJson(urlTipoDoc, &resTipoDoc); errTipoDoc == nil {
 		fmt.Printf("[Firma Electrónica - Console Log] Respuesta obtenida exitosamente del endpoint: %+v\n", resTipoDoc)
 		logs.Info(fmt.Sprintf("[Firma Electrónica] Respuesta recibida del TipoDocumento: %+v", resTipoDoc))
