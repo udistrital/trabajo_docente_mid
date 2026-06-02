@@ -405,12 +405,40 @@ func aprobarPlanDocente(planDocenteID, estadoAprobadoID, observacion string, res
 	}
 	logs.Info(fmt.Sprintf("[Firma Electrónica] Firmas configuradas: Docente (%s) y Coordinador (%s)", docenteInfo.TerceroId.NombreCompleto, responsableInfo.TerceroId.NombreCompleto))
 
-	// 6. Preparar el cuerpo del mensaje (payload) para consumir el microservicio de firma electrónica.
-	// El tipo de documento 73 corresponde por defecto al identificador de soporte de PTD.
+	// 6. Consultar dinámicamente el Tipo de Documento con la abreviación "SOPPLTRDOC"
+	tipoDocumentoID := 73 // Fallback por defecto a 73 por seguridad
+	var resTipoDoc []map[string]interface{}
+	urlTipoDoc := beego.AppConfig.String("DocumentoService") + "v1/tipo_documento?query=CodigoAbreviacion:SOPPLTRDOC,Activo:true&fields=Id&limit=1"
+	
+	fmt.Printf("[Firma Electrónica - Console Log] Consultando TipoDocumento en: %s\n", urlTipoDoc)
+	logs.Info(fmt.Sprintf("[Firma Electrónica] Consultando TipoDocumento en: %s", urlTipoDoc))
+	
+	if errTipoDoc := request.GetJson(urlTipoDoc, &resTipoDoc); errTipoDoc == nil {
+		fmt.Printf("[Firma Electrónica - Console Log] Respuesta obtenida exitosamente del endpoint: %+v\n", resTipoDoc)
+		logs.Info(fmt.Sprintf("[Firma Electrónica] Respuesta recibida del TipoDocumento: %+v", resTipoDoc))
+		if len(resTipoDoc) > 0 && resTipoDoc[0]["Id"] != nil {
+			if idFloat, ok := resTipoDoc[0]["Id"].(float64); ok {
+				tipoDocumentoID = int(idFloat)
+				fmt.Printf("[Firma Electrónica - Console Log] ID de TipoDocumento obtenido dinámicamente: %d\n", tipoDocumentoID)
+				logs.Info(fmt.Sprintf("[Firma Electrónica] TipoDocumento ID obtenido dinámicamente: %d", tipoDocumentoID))
+			} else {
+				fmt.Println("[Firma Electrónica - Console Log] Error al parsear el ID, usando fallback 73")
+				logs.Warn("[Firma Electrónica] No se pudo parsear el ID de TipoDocumento como float64, usando fallback 73")
+			}
+		} else {
+			fmt.Println("[Firma Electrónica - Console Log] Respuesta vacía de TipoDocumento, usando fallback 73")
+			logs.Warn("[Firma Electrónica] La respuesta de TipoDocumento está vacía, usando fallback 73")
+		}
+	} else {
+		fmt.Printf("[Firma Electrónica - Console Log] Error al consumir el endpoint: %v. Usando fallback 73\n", errTipoDoc)
+		logs.Error(fmt.Sprintf("[Firma Electrónica] Error al consultar TipoDocumento, usando fallback 73: %v", errTipoDoc))
+	}
+
+	// 7. Preparar el cuerpo del mensaje (payload) para consumir el microservicio de firma electrónica.
 	nombreArchivo := fmt.Sprintf("PTD_Firmado_IdDoce_%v_IdCoor_%v", data["docente_id"], responsableID)
 	sendFileDataandSigners := []map[string]interface{}{
 		{
-			"IdTipoDocumento": 73,
+			"IdTipoDocumento": tipoDocumentoID,
 			"nombre":          nombreArchivo,
 			"metadatos":       map[string]interface{}{},
 			"descripcion":     "",
