@@ -52,7 +52,7 @@ type Actividad struct {
 	Id                 string `json:"_id,omitempty"`
 	Nombre             string `json:"nombre,omitempty"`
 	Descripcion        string `json:"descripcion,omitempty"`
-	Codigo_abreviacion int    `json:"codigo_abreviacion,omitempty"`
+	Codigo_abreviacion string `json:"codigo_abreviacion,omitempty"`
 	Activo             bool   `json:"activo,omitempty"`
 	Fecha_creacion     string `json:"fecha_creacion,omitempty"`
 	Fecha_modificacion string `json:"fecha_modificacion,omitempty"`

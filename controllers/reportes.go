@@ -17,6 +17,7 @@ type ReportesController struct {
 func (c *ReportesController) URLMapping() {
 	c.Mapping("ReporteCargaLectiva", c.ReporteCargaLectiva)
 	c.Mapping("ReporteVerificacionCumplimientoPTD", c.ReporteVerificacionCumplimientoPTD)
+	c.Mapping("ReporteConsolidadoActividadesDocente", c.ReporteConsolidadoActividadesDocente)
 }
 
 // ReporteCargaLectiva ...
@@ -79,6 +80,37 @@ func (c *ReportesController) ReporteVerificacionCumplimientoPTD() {
 		c.Data["json"] = requestmanager.APIResponseDTO(false, 400, nil, "Error: Parámetro(s) con valores no válidos")
 	} else {
 		resultado := services.RepCumplimiento(vigencia, proyecto)
+		c.Data["json"] = resultado
+		c.Ctx.Output.SetStatus(resultado.Status)
+	}
+
+	c.ServeJSON()
+}
+
+// ReporteConsolidadoActividadesDocente ...
+// @Title ReporteConsolidadoActividadesDocente
+// @Description Generar consolidado de actividades y horas por docente
+// @Param  vigencia query int true "Id periodo academico"
+// @Param  proyecto query int false "Id proyecto academico"
+// @Success 200 Report Generation successful
+// @Failure 400 The request contains an incorrect data type or an invalid parameter
+// @Failure 404 he request contains an incorrect parameter or no record exist
+// @router /consolidado-actividades-docente [get]
+func (c *ReportesController) ReporteConsolidadoActividadesDocente() {
+	defer errorhandler.HandlePanic(&c.Controller)
+
+	vigencia, errvig := c.GetInt64("vigencia")
+	proyecto := c.GetString("proyecto")
+
+	if errvig != nil {
+		logs.Error(errvig)
+		c.Data["json"] = requestmanager.APIResponseDTO(false, 400, nil, "Error: Parámetro(s) no válido(s) o faltante(s)")
+		c.Ctx.Output.SetStatus(400)
+	} else if vigencia <= 0 {
+		logs.Error(vigencia, proyecto)
+		c.Data["json"] = requestmanager.APIResponseDTO(false, 400, nil, "Error: Parámetro(s) con valores no válidos")
+	} else {
+		resultado := services.RepConsolidadoActividadesDocente(vigencia, proyecto)
 		c.Data["json"] = resultado
 		c.Ctx.Output.SetStatus(resultado.Status)
 	}

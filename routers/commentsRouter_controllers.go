@@ -241,4 +241,13 @@ func init() {
 			Filters:          nil,
 			Params:           nil})
 
+	beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:ReportesController"] = append(beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:ReportesController"],
+		beego.ControllerComments{
+			Method:           "ReporteConsolidadoActividadesDocente",
+			Router:           "/consolidado-actividades-docente",
+			AllowHTTPMethods: []string{"get"},
+			MethodParams:     param.Make(),
+			Filters:          nil,
+			Params:           nil})
+
 }
