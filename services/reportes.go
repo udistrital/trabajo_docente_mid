@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -1349,6 +1350,295 @@ func generarReporteCumplimiento(infoRequerida infoRequeridaCumplimiento) request
 		"excel":         encodedFileExcel,
 		"pdf":           encodedFilePdf,
 		"listaIdPlanes": listaIdPlanesSimple,
+	}, "Report Generation successful")
+}
+
+type consolidadoActividadFila struct {
+	Documento       string
+	NombreDocente   string
+	CodigoActividad string
+	Actividad       string
+	Horas           float64
+	Periodo         string
+	TipoVinculacion string
+	Proyecto        string
+	CodigoProyecto  string
+}
+
+type infoRequeridaConsolidadoActividades struct {
+	Filas []consolidadoActividadFila
+}
+
+func RepConsolidadoActividadesDocente(vigencia int64, proyecto string) requestmanager.APIResponse {
+	info, errinfo := obtenerInformacionRequeridaRepConsolidadoActividades(vigencia, proyecto)
+	if errinfo != nil {
+		logs.Error(errinfo)
+		return requestmanager.APIResponseDTO(false, 404, nil, errinfo.Error())
+	}
+	return generarReporteConsolidadoActividades(info)
+}
+
+func obtenerInformacionRequeridaRepConsolidadoActividades(vigencia int64, proyectoFilter string) (infoRequeridaConsolidadoActividades, error) {
+	if strings.TrimSpace(proyectoFilter) == "" {
+		proyectoFilter = "0"
+	}
+
+	periodoNombre := obtenerNombrePeriodoConsolidado(vigencia)
+
+	estadoAprobadoResp, err := requestmanager.Get(beego.AppConfig.String("PlanTrabajoDocenteService")+
+		"estado_plan?query=activo:true,codigo_abreviacion:APR&fields=_id&limit=1", requestmanager.ParseResponseFormato1)
+	if err != nil {
+		logs.Error(err)
+		return infoRequeridaConsolidadoActividades{}, fmt.Errorf("PlanTrabajoDocenteService (estado_plan): %w", err)
+	}
+
+	estadoPlan := []models.EstadoPlan{}
+	utils.ParseData(estadoAprobadoResp, &estadoPlan)
+	if len(estadoPlan) == 0 {
+		return infoRequeridaConsolidadoActividades{}, fmt.Errorf("PlanTrabajoDocenteService (estado_plan): no se encontró estado APR")
+	}
+
+	plan_aprobado := estadoPlan[0].Id
+	resp, err := requestmanager.Get(beego.AppConfig.String("PlanTrabajoDocenteService")+
+		fmt.Sprintf("plan_docente?query=activo:true,estado_plan_id:%s,periodo_id:%d&limit=0", plan_aprobado, vigencia), requestmanager.ParseResponseFormato1)
+	if err != nil {
+		logs.Error(err)
+		return infoRequeridaConsolidadoActividades{}, fmt.Errorf("PlanTrabajoDocenteService (plan_docente): %w", err)
+	}
+
+	lista_planes := []models.PlanDocente{}
+	utils.ParseData(resp, &lista_planes)
+
+	filas := []consolidadoActividadFila{}
+	for _, plan_docente := range lista_planes {
+		datos_identificacion, err := obtenerDocumentoIdentificacionDocente(plan_docente.Docente_id)
+		if err != nil {
+			logs.Error(err)
+			return infoRequeridaConsolidadoActividades{}, fmt.Errorf("TercerosService (datos_identificacion): %w", err)
+		}
+
+		resp, err = requestmanager.Get(beego.AppConfig.String("ParametroService")+
+			fmt.Sprintf("parametro/%s", plan_docente.Tipo_vinculacion_id), requestmanager.ParseResponseFormato1)
+		if err != nil {
+			logs.Error(err)
+			return infoRequeridaConsolidadoActividades{}, fmt.Errorf("ParametroService (parametro): %w", err)
+		}
+		infoVinculacion := models.Parametro{}
+		utils.ParseData(resp, &infoVinculacion)
+
+		resp, err = requestmanager.Get(beego.AppConfig.String("PlanTrabajoDocenteService")+
+			fmt.Sprintf("carga_plan?query=activo:true,plan_docente_id:%s&limit=0", plan_docente.Id), requestmanager.ParseResponseFormato1)
+		if err != nil {
+			logs.Error(err)
+			return infoRequeridaConsolidadoActividades{}, fmt.Errorf("PlanTrabajoDocenteService (carga_plan): %w", err)
+		}
+		carga_plan := []models.CargaPlan{}
+		utils.ParseData(resp, &carga_plan)
+
+		for _, carga := range carga_plan {
+			nombreDocente := utils.FormatNameTercero(datos_identificacion.TerceroId)
+			if carga.Espacio_academico_id != "" && carga.Espacio_academico_id != "NA" {
+				espacio, err := obtenerEspacioAcademicoCumplimiento(carga.Espacio_academico_id)
+				if err != nil {
+					logs.Error(err)
+					return infoRequeridaConsolidadoActividades{}, err
+				}
+
+				proyectoId := fmt.Sprintf("%d", espacio.Proyecto_academico_id)
+				proyectoNombre := obtenerNombreProyectoCumplimiento(carga.Espacio_academico_id, espacio.Proyecto_academico_id)
+				codigoActividad := strings.TrimSpace(espacio.Codigo_abreviacion)
+				if codigoActividad == "" {
+					codigoActividad = strings.TrimSpace(espacio.Codigo)
+				}
+				filas = append(filas, consolidadoActividadFila{
+					Documento:       datos_identificacion.Numero,
+					NombreDocente:   nombreDocente,
+					CodigoActividad: "HL",
+					Actividad:       "Horas lectivas",
+					Horas:           carga.Duracion,
+					Periodo:         periodoNombre,
+					TipoVinculacion: infoVinculacion.Nombre,
+					Proyecto:        proyectoNombre,
+					CodigoProyecto:  proyectoId,
+				})
+			}
+
+			if carga.Actividad_id != "" && carga.Actividad_id != "NA" {
+				actividad, err := obtenerDetalleActividadConsolidado(carga.Actividad_id)
+				if err != nil {
+					logs.Error(err)
+					return infoRequeridaConsolidadoActividades{}, fmt.Errorf("PlanTrabajoDocenteService (actividad): %w", err)
+				}
+
+				codigoActividad := actividad.Codigo_abreviacion
+
+				filas = append(filas, consolidadoActividadFila{
+					Documento:       datos_identificacion.Numero,
+					NombreDocente:   nombreDocente,
+					CodigoActividad: codigoActividad,
+					Actividad:       actividad.Nombre,
+					Horas:           carga.Duracion,
+					Periodo:         periodoNombre,
+					TipoVinculacion: infoVinculacion.Nombre,
+					Proyecto:        "",
+					CodigoProyecto:  "",
+				})
+			}
+		}
+	}
+
+	sort.Slice(filas, func(i, j int) bool {
+		if filas[i].TipoVinculacion != filas[j].TipoVinculacion {
+			return filas[i].TipoVinculacion < filas[j].TipoVinculacion
+		}
+		if filas[i].NombreDocente != filas[j].NombreDocente {
+			return filas[i].NombreDocente < filas[j].NombreDocente
+		}
+		if filas[i].Actividad != filas[j].Actividad {
+			return filas[i].Actividad < filas[j].Actividad
+		}
+		return filas[i].Horas < filas[j].Horas
+	})
+
+	return infoRequeridaConsolidadoActividades{Filas: filas}, nil
+}
+
+func obtenerDetalleActividadConsolidado(idActividad string) (models.Actividad, error) {
+	id := strings.TrimSpace(idActividad)
+	if id == "" || id == "NA" {
+		return models.Actividad{}, fmt.Errorf("id de actividad inválido")
+	}
+
+	resp, err := requestmanager.Get(beego.AppConfig.String("PlanTrabajoDocenteService")+
+		fmt.Sprintf("actividad/%s", id), requestmanager.ParseResponseFormato1)
+	if err != nil {
+		logs.Error("actividad/%s", id)
+		return models.Actividad{}, err
+	}
+
+	actividad := models.Actividad{}
+	if data, ok := resp.(map[string]interface{}); ok {
+		utils.ParseData(data, &actividad)
+	}
+
+	if strings.TrimSpace(actividad.Nombre) == "" {
+		actividad.Nombre = strings.TrimSpace(idActividad)
+	}
+
+	return actividad, nil
+}
+
+func obtenerNombrePeriodoConsolidado(vigencia int64) string {
+	resp, err := requestmanager.Get(beego.AppConfig.String("ParametroService")+
+		fmt.Sprintf("periodo/%d", vigencia), requestmanager.ParseResponseFormato1)
+	if err != nil {
+		logs.Error(err)
+		return fmt.Sprintf("%d", vigencia)
+	}
+
+	periodo := models.Periodo{}
+	utils.ParseData(resp, &periodo)
+	if strings.TrimSpace(periodo.Nombre) != "" {
+		return periodo.Nombre
+	}
+
+	return fmt.Sprintf("%d", vigencia)
+}
+
+func agruparFilasConsolidadoActividades(filas []consolidadoActividadFila) []consolidadoActividadFila {
+	grouped := map[string]consolidadoActividadFila{}
+	order := []string{}
+
+	for _, fila := range filas {
+		key := fmt.Sprintf("%s|%s|%s|%s|%s|%s|%s|%s",
+			strings.TrimSpace(fila.Documento),
+			strings.TrimSpace(fila.NombreDocente),
+			strings.TrimSpace(fila.CodigoActividad),
+			strings.TrimSpace(fila.Actividad),
+			strings.TrimSpace(fila.Periodo),
+			strings.TrimSpace(fila.TipoVinculacion),
+			strings.TrimSpace(fila.Proyecto),
+			strings.TrimSpace(fila.CodigoProyecto),
+		)
+		if existing, ok := grouped[key]; ok {
+			existing.Horas += fila.Horas
+			grouped[key] = existing
+		} else {
+			grouped[key] = fila
+			order = append(order, key)
+		}
+	}
+
+	result := make([]consolidadoActividadFila, 0, len(order))
+	for _, key := range order {
+		result = append(result, grouped[key])
+	}
+	return result
+}
+
+func generarReporteConsolidadoActividades(infoRequerida infoRequeridaConsolidadoActividades) requestmanager.APIResponse {
+	file := excelize.NewFile()
+	sheet := "Consolidado Actividades"
+	file.SetSheetName("Sheet1", sheet)
+
+	headers := []string{"Documento", "Nombre docente", "Codigo actividad", "Actividad", "Horas", "Periodo", "Tipo vinculacion", "Proyecto", "Codigo proyecto"}
+	for index, header := range headers {
+		cell, _ := excelize.CoordinatesToCellName(index+1, 1)
+		file.SetCellValue(sheet, cell, header)
+	}
+
+	headerStyle, err := file.NewStyle(&excelize.Style{
+		Alignment: &excelize.Alignment{Horizontal: "center", Vertical: "center", WrapText: true},
+		Font:      &excelize.Font{Bold: true, Color: "FFFFFF"},
+		Fill:      excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"1F4E78"}},
+		Border: []excelize.Border{
+			{Type: "left", Style: 1, Color: "000000"},
+			{Type: "right", Style: 1, Color: "000000"},
+			{Type: "top", Style: 1, Color: "000000"},
+			{Type: "bottom", Style: 1, Color: "000000"},
+		},
+	})
+	if err != nil {
+		logs.Error(err)
+		return requestmanager.APIResponseDTO(false, 404, nil, "ReporteConsolidadoActividadesDocente (style): "+err.Error())
+	}
+	file.SetCellStyle(sheet, "A1", "I1", headerStyle)
+
+	file.SetColWidth(sheet, "A", "A", 15)
+	file.SetColWidth(sheet, "B", "B", 30)
+	file.SetColWidth(sheet, "C", "C", 18)
+	file.SetColWidth(sheet, "D", "D", 35)
+	file.SetColWidth(sheet, "E", "E", 12)
+	file.SetColWidth(sheet, "F", "F", 18)
+	file.SetColWidth(sheet, "G", "G", 20)
+	file.SetColWidth(sheet, "H", "H", 30)
+	file.SetColWidth(sheet, "I", "I", 18)
+
+	rowIndex := 2
+	filas := agruparFilasConsolidadoActividades(infoRequerida.Filas)
+	for _, fila := range filas {
+		file.SetCellValue(sheet, fmt.Sprintf("A%d", rowIndex), fila.Documento)
+		file.SetCellValue(sheet, fmt.Sprintf("B%d", rowIndex), fila.NombreDocente)
+		file.SetCellValue(sheet, fmt.Sprintf("C%d", rowIndex), fila.CodigoActividad)
+		file.SetCellValue(sheet, fmt.Sprintf("D%d", rowIndex), fila.Actividad)
+		file.SetCellValue(sheet, fmt.Sprintf("E%d", rowIndex), fila.Horas)
+		file.SetCellValue(sheet, fmt.Sprintf("F%d", rowIndex), fila.Periodo)
+		file.SetCellValue(sheet, fmt.Sprintf("G%d", rowIndex), fila.TipoVinculacion)
+		file.SetCellValue(sheet, fmt.Sprintf("H%d", rowIndex), fila.Proyecto)
+		file.SetCellValue(sheet, fmt.Sprintf("I%d", rowIndex), fila.CodigoProyecto)
+		rowIndex++
+	}
+
+	buffer, err := file.WriteToBuffer()
+	if err != nil {
+		logs.Error(err)
+		return requestmanager.APIResponseDTO(false, 404, nil, "ReporteConsolidadoActividadesDocente (writing_file): "+err.Error())
+	}
+
+	encodedFileExcel := base64.StdEncoding.EncodeToString(buffer.Bytes())
+	return requestmanager.APIResponseDTO(true, 200, map[string]interface{}{
+		"excel":  encodedFileExcel,
+		"nombre": "Consolidado_Actividades.xlsx",
 	}, "Report Generation successful")
 }
 
