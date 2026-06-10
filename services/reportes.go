@@ -221,6 +221,7 @@ func generarReporteCargaLectiva(infoRequerida infoRequeridaRepCL, cargaTipo stri
 	horaes := time.Now().In(inBog).Format("02/01/2006 15:04:05")
 
 	path := obtenerRutaStaticReporte()
+	fmt.Println("Ruta estática utilizada para reportes:", path)
 	template, errt := excelize.OpenFile(filepath.Join(path, "templates", "PTD.xlsx"))
 	if errt != nil {
 		logs.Error(errt)
@@ -555,6 +556,7 @@ type infoRequeridaCumplimiento struct {
 
 func obtenerRutaStaticReporte() string {
 	ruta := strings.TrimSpace(beego.AppConfig.String("StaticPath"))
+	fmt.Println("RUTA STATIC CONFIG:", ruta)
 	candidatos := []string{}
 	if ruta != "" {
 		candidatos = append(candidatos, ruta)
