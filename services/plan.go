@@ -695,9 +695,6 @@ func consultarDetallePlan(planes []interface{}, idVinculacion int64) map[string]
 			if fmt.Sprintf("%v", resCarga["Data"]) != "[]" {
 				for _, carga := range resCarga["Data"].([]interface{}) {
 					var horario map[string]interface{}
-					var sede []map[string]interface{}
-					var edificio map[string]interface{}
-					var salon map[string]interface{}
 					var resColocacion map[string]interface{}
 					var resumenColocacion map[string]interface{}
 					var sedeId string
@@ -718,25 +715,31 @@ func consultarDetallePlan(planes []interface{}, idVinculacion int64) map[string]
 									"espacio_academico_id":            carga.(map[string]interface{})["espacio_academico_id"].(string),
 									"colocacion_espacio_academico_id": carga.(map[string]interface{})["colocacion_espacio_academico_id"].(string),
 								}
-								if sedeId != "NA" {
-									if errSede := request.GetJson(beego.AppConfig.String("OikosService")+"espacio_fisico?query=Id:"+sedeId+"&fields=Id,Nombre,CodigoAbreviacion", &sede); errSede == nil {
-										cargaDetalle["sede"] = sede[0]
+								if sedeId != "NA" && sedeId != "" {
+									if esp, errEsp := obtenerEspacioFisicoOikos(sedeId); errEsp == nil {
+										cargaDetalle["sede"] = esp
+									} else {
+										cargaDetalle["sede"] = "NA"
 									}
 								} else {
 									cargaDetalle["sede"] = "NA"
 								}
 
-								if edificioId != "NA" {
-									if errEdificio := request.GetJson(beego.AppConfig.String("OikosService")+"espacio_fisico/"+edificioId, &edificio); errEdificio == nil {
-										cargaDetalle["edificio"] = edificio
+								if edificioId != "NA" && edificioId != "" {
+									if esp, errEsp := obtenerEspacioFisicoOikos(edificioId); errEsp == nil {
+										cargaDetalle["edificio"] = esp
+									} else {
+										cargaDetalle["edificio"] = "NA"
 									}
 								} else {
 									cargaDetalle["edificio"] = "NA"
 								}
 
-								if salonId != "NA" {
-									if errSalon := request.GetJson(beego.AppConfig.String("OikosService")+"espacio_fisico/"+salonId, &salon); errSalon == nil {
-										cargaDetalle["salon"] = salon
+								if salonId != "NA" && salonId != "" {
+									if esp, errEsp := obtenerEspacioFisicoOikos(salonId); errEsp == nil {
+										cargaDetalle["salon"] = esp
+									} else {
+										cargaDetalle["salon"] = "NA"
 									}
 								} else {
 									cargaDetalle["salon"] = "NA"
@@ -1294,4 +1297,44 @@ func sendJsonWithAuth(url string, method string, target interface{}, datajson in
 	}
 
 	return json.NewDecoder(resp.Body).Decode(target)
+}
+
+// obtenerEspacioFisicoOikos consulta un espacio físico en Oikos por Id o por CodigoAbreviacion.
+func obtenerEspacioFisicoOikos(idOrCode string) (map[string]interface{}, error) {
+	idOrCode = strings.TrimSpace(idOrCode)
+	if idOrCode == "" || idOrCode == "0" || idOrCode == "NA" {
+		return nil, fmt.Errorf("código o ID de espacio físico inválido: %s", idOrCode)
+	}
+
+	var response []map[string]interface{}
+
+	// Si es enteramente numérico, consultamos por Id
+	if _, err := strconv.Atoi(idOrCode); err == nil {
+		url := beego.AppConfig.String("OikosService") + "espacio_fisico?query=Id:" + idOrCode + "&limit=1"
+		if errGet := request.GetJson(url, &response); errGet == nil && len(response) > 0 {
+			return response[0], nil
+		}
+
+		// Fallback directo por ID
+		var temp map[string]interface{}
+		urlDirect := beego.AppConfig.String("OikosService") + "espacio_fisico/" + idOrCode
+		if errGet := request.GetJson(urlDirect, &temp); errGet == nil {
+			if success, ok := temp["Success"].(bool); !ok || success {
+				if status, ok := temp["Status"].(string); !ok || (status != "404" && status != "400") {
+					if data, ok := temp["Data"].(map[string]interface{}); ok {
+						return data, nil
+					}
+					return temp, nil
+				}
+			}
+		}
+	}
+
+	// Consultar por CodigoAbreviacion
+	urlQuery := beego.AppConfig.String("OikosService") + "espacio_fisico?query=CodigoAbreviacion:" + idOrCode + "&limit=1"
+	if errGet := request.GetJson(urlQuery, &response); errGet == nil && len(response) > 0 {
+		return response[0], nil
+	}
+
+	return nil, fmt.Errorf("no se encontró el espacio físico con ID o código: %s", idOrCode)
 }

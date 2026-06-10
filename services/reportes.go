@@ -1646,36 +1646,40 @@ func generarReporteConsolidadoActividades(infoRequerida infoRequeridaConsolidado
 
 // funciones transversales
 func consultarInfoEspacioFisico(sede_id, edificio_id, salon_id string) (interface{}, error) {
+	var sede, edificio, salon map[string]interface{}
+	var err error
+
 	if sede_id == "0" || sede_id == "NA" || sede_id == "" {
-		return map[string]interface{}{
-			"sede":     map[string]interface{}{"Id": 0, "Nombre": "No asignado", "CodigoAbreviacion": "NA"},
-			"edificio": map[string]interface{}{"Id": 0, "Nombre": "No asignado", "CodigoAbreviacion": "NA"},
-			"salon":    map[string]interface{}{"Id": 0, "Nombre": "No asignado", "CodigoAbreviacion": "NA"},
-		}, nil
+		sede = map[string]interface{}{"Id": 0, "Nombre": "No asignado", "CodigoAbreviacion": "NA"}
+	} else {
+		sede, err = obtenerEspacioFisicoOikos(sede_id)
+		if err != nil {
+			sede = map[string]interface{}{"Id": 0, "Nombre": "No asignado", "CodigoAbreviacion": "NA"}
+		}
 	}
 
-	sede, err := requestmanager.Get(beego.AppConfig.String("OikosService")+fmt.Sprintf("espacio_fisico?query=Id:%s&fields=Id,Nombre,CodigoAbreviacion&limit=1", sede_id),
-		requestmanager.ParseResonseNoFormat)
-
-	if err != nil {
-		return nil, err
+	if edificio_id == "0" || edificio_id == "NA" || edificio_id == "" {
+		edificio = map[string]interface{}{"Id": 0, "Nombre": "No asignado", "CodigoAbreviacion": "NA"}
+	} else {
+		edificio, err = obtenerEspacioFisicoOikos(edificio_id)
+		if err != nil {
+			edificio = map[string]interface{}{"Id": 0, "Nombre": "No asignado", "CodigoAbreviacion": "NA"}
+		}
 	}
-	edificio, err := requestmanager.Get(beego.AppConfig.String("OikosService")+fmt.Sprintf("espacio_fisico?query=Id:%s&fields=Id,Nombre,CodigoAbreviacion&limit=1", edificio_id),
-		requestmanager.ParseResonseNoFormat)
 
-	if err != nil {
-		return nil, err
-	}
-	salon, err := requestmanager.Get(beego.AppConfig.String("OikosService")+fmt.Sprintf("espacio_fisico?query=Id:%s&fields=Id,Nombre,CodigoAbreviacion&limit=1", salon_id),
-		requestmanager.ParseResonseNoFormat)
-	if err != nil {
-		return nil, err
+	if salon_id == "0" || salon_id == "NA" || salon_id == "" {
+		salon = map[string]interface{}{"Id": 0, "Nombre": "No asignado", "CodigoAbreviacion": "NA"}
+	} else {
+		salon, err = obtenerEspacioFisicoOikos(salon_id)
+		if err != nil {
+			salon = map[string]interface{}{"Id": 0, "Nombre": "No asignado", "CodigoAbreviacion": "NA"}
+		}
 	}
 
 	return map[string]interface{}{
-		"sede":     sede.([]interface{})[0],
-		"edificio": edificio.([]interface{})[0],
-		"salon":    salon.([]interface{})[0],
+		"sede":     sede,
+		"edificio": edificio,
+		"salon":    salon,
 	}, nil
 }
 
