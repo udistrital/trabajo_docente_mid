@@ -36,8 +36,8 @@ func init() {
 
 	beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:CalendarioController"] = append(beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:CalendarioController"],
 		beego.ControllerComments{
-			Method:           "GetProyectosFacultadDecano",
-			Router:           "/proyectos_facultad_decano",
+			Method:           "GetEventos",
+			Router:           "/eventos",
 			AllowHTTPMethods: []string{"get"},
 			MethodParams:     param.Make(),
 			Filters:          nil,
@@ -45,8 +45,8 @@ func init() {
 
 	beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:CalendarioController"] = append(beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:CalendarioController"],
 		beego.ControllerComments{
-			Method:           "GetEventos",
-			Router:           "/eventos",
+			Method:           "GetProyectosFacultadDecano",
+			Router:           "/proyectos_facultad_decano",
 			AllowHTTPMethods: []string{"get"},
 			MethodParams:     param.Make(),
 			Filters:          nil,
@@ -153,18 +153,18 @@ func init() {
 
 	beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:PlanController"] = append(beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:PlanController"],
 		beego.ControllerComments{
-			Method:           "AprobarPlanesTrabajoDocente",
-			Router:           "/aprobacion_masiva",
-			AllowHTTPMethods: []string{"put"},
+			Method:           "PlanTrabajoDocenteAsignacion",
+			Router:           "/",
+			AllowHTTPMethods: []string{"get"},
 			MethodParams:     param.Make(),
 			Filters:          nil,
 			Params:           nil})
 
 	beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:PlanController"] = append(beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:PlanController"],
 		beego.ControllerComments{
-			Method:           "PlanTrabajoDocenteAsignacion",
-			Router:           "/",
-			AllowHTTPMethods: []string{"get"},
+			Method:           "AprobarPlanesTrabajoDocente",
+			Router:           "/aprobacion-masiva",
+			AllowHTTPMethods: []string{"put"},
 			MethodParams:     param.Make(),
 			Filters:          nil,
 			Params:           nil})
@@ -225,6 +225,15 @@ func init() {
 
 	beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:ReportesController"] = append(beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:ReportesController"],
 		beego.ControllerComments{
+			Method:           "ReporteConsolidadoActividadesDocente",
+			Router:           "/consolidado-actividades-docente",
+			AllowHTTPMethods: []string{"get"},
+			MethodParams:     param.Make(),
+			Filters:          nil,
+			Params:           nil})
+
+	beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:ReportesController"] = append(beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:ReportesController"],
+		beego.ControllerComments{
 			Method:           "ReporteCargaLectiva",
 			Router:           "/plan-trabajo-docente",
 			AllowHTTPMethods: []string{"get"},
@@ -236,15 +245,6 @@ func init() {
 		beego.ControllerComments{
 			Method:           "ReporteVerificacionCumplimientoPTD",
 			Router:           "/verificacion-cumplimiento-ptd",
-			AllowHTTPMethods: []string{"get"},
-			MethodParams:     param.Make(),
-			Filters:          nil,
-			Params:           nil})
-
-	beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:ReportesController"] = append(beego.GlobalControllerRouter["github.com/udistrital/trabajo_docente_mid/controllers:ReportesController"],
-		beego.ControllerComments{
-			Method:           "ReporteConsolidadoActividadesDocente",
-			Router:           "/consolidado-actividades-docente",
 			AllowHTTPMethods: []string{"get"},
 			MethodParams:     param.Make(),
 			Filters:          nil,
