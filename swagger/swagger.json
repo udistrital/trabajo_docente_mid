@@ -129,6 +129,38 @@
                 }
             }
         },
+        "/calendario/proyectos_facultad_decano": {
+            "get": {
+                "tags": [
+                    "calendario"
+                ],
+                "description": "Consulta la facultad activa del decano y retorna los proyectos de PREGRADO y POSGRADO",
+                "operationId": "CalendarioController.GetProyectosFacultadDecano",
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "documento",
+                        "description": "Documento del decano",
+                        "required": true,
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/map[string]interface{}"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "no record exist"
+                    }
+                }
+            }
+        },
         "/docente/documento": {
             "get": {
                 "tags": [
@@ -811,6 +843,43 @@
                     },
                     "404": {
                         "description": "not found resource"
+                    }
+                }
+            }
+        },
+        "/reporte/consolidado-actividades-docente": {
+            "get": {
+                "tags": [
+                    "reporte"
+                ],
+                "description": "Generar consolidado de actividades y horas por docente",
+                "operationId": "ReportesController.ReporteConsolidadoActividadesDocente",
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "vigencia",
+                        "description": "Id periodo academico",
+                        "required": true,
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    {
+                        "in": "query",
+                        "name": "proyecto",
+                        "description": "Id proyecto academico",
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Report Generation successful"
+                    },
+                    "400": {
+                        "description": "The request contains an incorrect data type or an invalid parameter"
+                    },
+                    "404": {
+                        "description": "he request contains an incorrect parameter or no record exist"
                     }
                 }
             }
