@@ -6,6 +6,10 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,6 +19,7 @@ import (
 	"github.com/phpdave11/gofpdf"
 	"github.com/udistrital/trabajo_docente_mid/models"
 	"github.com/udistrital/trabajo_docente_mid/utils"
+	request "github.com/udistrital/utils_oas/request"
 	requestmanager "github.com/udistrital/utils_oas/requestresponse"
 	"github.com/udistrital/utils_oas/xlsx2pdf"
 	"github.com/xuri/excelize/v2"
@@ -45,71 +50,167 @@ type infoRequeridaRepCL struct {
 	datosCargaPlan   []models.CargaPlan
 }
 
-func obtenerInformacionRequeridaRepCargaLectiva(docente, vinculacion, periodo int64) (infoRequeridaRepCL, error) {
+func obtenerDocumentoIdentificacionDocente(docente string) (models.DatosIdentificacion, error) {
 	resp, err := requestmanager.Get(beego.AppConfig.String("TercerosService")+
-		fmt.Sprintf("datos_identificacion?query=Activo:true,TerceroId__Id:%d&fields=TerceroId,Numero,TipoDocumentoId&sortby=FechaExpedicion,Id&order=desc&limit=1", docente), requestmanager.ParseResonseNoFormat)
+		fmt.Sprintf("datos_identificacion?query=Activo:true,TerceroId__Id:%s,TipoDocumentoId__Id__lt:14&fields=TerceroId,Numero,TipoDocumentoId&sortby=FechaExpedicion,Id&order=desc&limit=1", docente), requestmanager.ParseResonseNoFormat)
 	if err != nil {
-		logs.Error(err)
-		return infoRequeridaRepCL{}, fmt.Errorf("TercerosService (datos_identificacion): " + err.Error())
+		return models.DatosIdentificacion{}, err
 	}
-	datoIdenfTercero := models.DatosIdentificacion{}
-	utils.ParseData(resp.([]interface{})[0], &datoIdenfTercero)
 
-	resp, err = requestmanager.Get(beego.AppConfig.String("ParametroService")+fmt.Sprintf("parametro/%d", vinculacion), requestmanager.ParseResponseFormato1)
+	data, ok := resp.([]interface{})
+	if !ok || len(data) == 0 {
+		return models.DatosIdentificacion{}, fmt.Errorf("no se encontró documento de identidad para el docente %s", docente)
+	}
+
+	datosIdentificacion := models.DatosIdentificacion{}
+	utils.ParseData(data[0], &datosIdentificacion)
+	return datosIdentificacion, nil
+}
+
+func obtenerInformacionRequeridaRepCargaLectiva(docente, vinculacion, periodo int64) (infoRequeridaRepCL, error) {
+	datoIdenfTercero, err := obtenerDocumentoIdentificacionDocente(fmt.Sprintf("%d", docente))
 	if err != nil {
 		logs.Error(err)
-		return infoRequeridaRepCL{}, fmt.Errorf("ParametroService (parametro): " + err.Error())
+		return infoRequeridaRepCL{}, fmt.Errorf("TercerosService (datos_identificacion): %w", err)
+	}
+	logs.Info("TercerosService (datos_identificacion):", datoIdenfTercero)
+
+	resp, err := requestmanager.Get(beego.AppConfig.String("ParametroService")+fmt.Sprintf("parametro/%d", vinculacion), requestmanager.ParseResponseFormato1)
+	if err != nil {
+		logs.Error(err)
+		return infoRequeridaRepCL{}, fmt.Errorf("ParametroService (parametro): %w", err)
 	}
 	datoVinculacion := models.Parametro{}
 	utils.ParseData(resp, &datoVinculacion)
+	logs.Info("ParametroService (parametro):", datoVinculacion)
 
 	resp, err = requestmanager.Get(beego.AppConfig.String("ParametroService")+fmt.Sprintf("periodo/%d", periodo), requestmanager.ParseResponseFormato1)
 	if err != nil {
 		logs.Error(err)
-		return infoRequeridaRepCL{}, fmt.Errorf("ParametroService (periodo): " + err.Error())
+		return infoRequeridaRepCL{}, fmt.Errorf("ParametroService (periodo): %w", err)
 	}
 	datoPeriodo := models.Periodo{}
 	utils.ParseData(resp, &datoPeriodo)
+	logs.Info("ParametroService (periodo):", datoPeriodo)
 
 	resp, err = requestmanager.Get(beego.AppConfig.String("PlanTrabajoDocenteService")+
 		fmt.Sprintf("plan_docente?query=activo:true,docente_id:%d,tipo_vinculacion_id:%d,periodo_id:%d&limit=1", docente, vinculacion, periodo), requestmanager.ParseResponseFormato1)
 	if err != nil {
 		logs.Error(err)
-		return infoRequeridaRepCL{}, fmt.Errorf("PlanTrabajoDocenteService (plan_docente): " + err.Error())
+		return infoRequeridaRepCL{}, fmt.Errorf("PlanTrabajoDocenteService (plan_docente): %w", err)
 	}
 	datoPlanDocente := models.PlanDocente{}
 	utils.ParseData(resp.([]interface{})[0], &datoPlanDocente)
+	logs.Info("PlanTrabajoDocenteService (plan_docente):", datoPlanDocente)
 
 	datoResumen := resumenJson{}
-	json.Unmarshal([]byte(datoPlanDocente.Resumen), &datoResumen)
+	if firstPlan, ok := resp.([]interface{})[0].(map[string]interface{}); ok {
+		if resumenVal, okRes := firstPlan["resumen"]; okRes && resumenVal != nil {
+			switch val := resumenVal.(type) {
+			case string:
+				datoPlanDocente.Resumen = val
+				json.Unmarshal([]byte(val), &datoResumen)
+			case map[string]interface{}:
+				resumenBytes, _ := json.Marshal(val)
+				datoPlanDocente.Resumen = string(resumenBytes)
+				json.Unmarshal(resumenBytes, &datoResumen)
+			}
+		}
+	}
+	logs.Info("Resumen (decodificado):", datoResumen)
 
 	resp, err = requestmanager.Get(beego.AppConfig.String("PlanTrabajoDocenteService")+
 		fmt.Sprintf("carga_plan?query=activo:true,plan_docente_id:%s,&limit=0", datoPlanDocente.Id), requestmanager.ParseResponseFormato1)
 	if err != nil {
 		logs.Error(err)
-		return infoRequeridaRepCL{}, fmt.Errorf("PlanTrabajoDocenteService (carga_plan): " + err.Error())
+		return infoRequeridaRepCL{}, fmt.Errorf("PlanTrabajoDocenteService (carga_plan): %w", err)
 	}
 	datosCargaPlan := []models.CargaPlan{}
 	utils.ParseData(resp, &datosCargaPlan)
+	logs.Info("PlanTrabajoDocenteService (carga_plan):", datosCargaPlan)
+
+	/*
+		for i := 0; i < len(datosCargaPlan); i++ {
+			resp, err := requestmanager.Get(beego.AppConfig.String("HorarioService")+
+				fmt.Sprintf("colocacion-espacio-academico/%s", datosCargaPlan[i].Colocacion_espacio_academico_id), requestmanager.ParseResponseFormato2)
+
+			if err != nil {
+				logs.Error(err)
+				return infoRequeridaRepCL{}, fmt.Errorf("HorarioService (colocacion_espacio_academico): %w", err)
+			}
+
+			resumenColocacion := models.ResumenColocacion{}
+			json.Unmarshal([]byte(resp.(map[string]interface{})["ResumenColocacionEspacioFisico"].(string)), &resumenColocacion)
+
+			datosCargaPlan[i].Horario = string(resumenColocacion.Colocacion)
+			datosCargaPlan[i].Sede_id = fmt.Sprint(resumenColocacion.EspacioFisico.SedeId)
+			datosCargaPlan[i].Edificio_id = fmt.Sprint(resumenColocacion.EspacioFisico.EdificioId)
+			datosCargaPlan[i].Salon_id = fmt.Sprint(resumenColocacion.EspacioFisico.SalonId)
+
+		}
+	*/
+
+	respPlan := PlanTrabajoDocente(docente, periodo, vinculacion)
+	if !respPlan.Success {
+		errPlan := fmt.Errorf("%v", respPlan.Message)
+		logs.Error(errPlan)
+		return infoRequeridaRepCL{}, fmt.Errorf("PlanTrabajoDocente (plan): %w", errPlan)
+	}
+	logs.Info("PlanTrabajoDocente (plan) Respuesta obtenida correctamente")
+
+	var dataPlan map[string]interface{}
+	if respPlanMap, ok := respPlan.Data.(map[string]interface{}); ok {
+		dataPlan = respPlanMap
+	}
+
+	var arrCargaPlan [][]map[string]interface{}
+	if cargaData, ok := dataPlan["carga"]; ok {
+		bytesCarga, _ := json.Marshal(cargaData)
+		json.Unmarshal(bytesCarga, &arrCargaPlan)
+	}
+
+	mapEspacios := make(map[string]map[string]interface{})
+	for _, arr := range arrCargaPlan {
+		for _, item := range arr {
+			if idEsp, ok := item["colocacion_espacio_academico_id"].(string); ok {
+				mapEspacios[idEsp] = item
+			}
+		}
+	}
+	logs.Info("Se encontraron", len(mapEspacios), "elementos en 'carga' del plan")
+	logs.Info("Procesando actualización de espacios y horarios para", len(datosCargaPlan), "registros de carga_plan")
 
 	for i := 0; i < len(datosCargaPlan); i++ {
-		resp, err := requestmanager.Get(beego.AppConfig.String("HorarioService")+
-			fmt.Sprintf("colocacion-espacio-academico/%s", datosCargaPlan[i].Colocacion_espacio_academico_id), requestmanager.ParseResponseFormato2)
+		datosCargaPlan[i].Sede_id = "0"
+		datosCargaPlan[i].Edificio_id = "0"
+		datosCargaPlan[i].Salon_id = "0"
 
-		if err != nil {
-			logs.Error(err)
-			return infoRequeridaRepCL{}, fmt.Errorf("HorarioService (colocacion_espacio_academico): " + err.Error())
+		if item, ok := mapEspacios[datosCargaPlan[i].Colocacion_espacio_academico_id]; ok {
+			horarioBytes, _ := json.Marshal(item["horario"])
+			datosCargaPlan[i].Horario = string(horarioBytes)
+
+			if sedeMap, ok := item["sede"].(map[string]interface{}); ok {
+				if id, ok := sedeMap["Id"]; ok {
+					datosCargaPlan[i].Sede_id = fmt.Sprint(id)
+				}
+			}
+
+			if edifMap, ok := item["edificio"].(map[string]interface{}); ok {
+				if id, ok := edifMap["Id"]; ok {
+					datosCargaPlan[i].Edificio_id = fmt.Sprint(id)
+				}
+			}
+
+			if salonMap, ok := item["salon"].(map[string]interface{}); ok {
+				if id, ok := salonMap["Id"]; ok {
+					datosCargaPlan[i].Salon_id = fmt.Sprint(id)
+				}
+			}
+		} else {
+			logs.Info("No se encontró coincidencia en el plan para colocacion_espacio_academico_id:", datosCargaPlan[i].Colocacion_espacio_academico_id)
 		}
-
-		resumenColocacion := models.ResumenColocacion{}
-		json.Unmarshal([]byte(resp.(map[string]interface{})["ResumenColocacionEspacioFisico"].(string)), &resumenColocacion)
-
-		datosCargaPlan[i].Horario = string(resumenColocacion.Colocacion)
-		datosCargaPlan[i].Sede_id = fmt.Sprint(resumenColocacion.EspacioFisico.SedeId)
-		datosCargaPlan[i].Edificio_id = fmt.Sprint(resumenColocacion.EspacioFisico.EdificioId)
-		datosCargaPlan[i].Salon_id = fmt.Sprint(resumenColocacion.EspacioFisico.SalonId)
-
 	}
+	logs.Info("Actualización de datos de carga_plan finalizada")
 
 	return infoRequeridaRepCL{datoIdenfTercero, datoVinculacion, datoPeriodo, datoPlanDocente, datoResumen, datosCargaPlan}, nil
 }
@@ -119,8 +220,9 @@ func generarReporteCargaLectiva(infoRequerida infoRequeridaRepCL, cargaTipo stri
 	inBog, _ := time.LoadLocation("America/Bogota")
 	horaes := time.Now().In(inBog).Format("02/01/2006 15:04:05")
 
-	path := beego.AppConfig.String("StaticPath")
-	template, errt := excelize.OpenFile(path + "/templates/PTD.xlsx")
+	path := obtenerRutaStaticReporte()
+	fmt.Println("Ruta estática utilizada para reportes:", path)
+	template, errt := excelize.OpenFile(filepath.Join(path, "templates", "PTD.xlsx"))
 	if errt != nil {
 		logs.Error(errt)
 		return requestmanager.APIResponseDTO(false, 404, nil, "ReporteCargaLectiva (reading_template): "+errt.Error())
@@ -206,6 +308,19 @@ func generarReporteCargaLectiva(infoRequerida infoRequeridaRepCL, cargaTipo stri
 		// ? Añadir carga o actividad o las dos segun CargaTipo
 		dia := int(horarioIs.Posicion.X/WidthX) * 5 // ? 5 => Cantidad de columnas por día cuadrícula excel
 		horaIni := int(horarioIs.Posicion.Y / HeightY)
+
+		if len(horarioIs.HoraFormato) > 0 && strings.Contains(horarioIs.HoraFormato, ":") {
+			horaParts := strings.Split(horarioIs.HoraFormato, " - ")
+			timeParts := strings.Split(horaParts[0], ":")
+			if len(timeParts) >= 2 {
+				if hh, errH := strconv.Atoi(strings.TrimSpace(timeParts[0])); errH == nil {
+					if mm, errM := strconv.Atoi(strings.TrimSpace(timeParts[1])); errM == nil {
+						horaIni = (hh-6)*4 + (mm / 15)
+					}
+				}
+			}
+		}
+
 		horaFin := horaIni + int(carga.Duracion*4) // ? duración * 4 es para contar en cuartos de hora
 		if horaFin >= horamax {
 			horamax = horaFin
@@ -219,10 +334,17 @@ func generarReporteCargaLectiva(infoRequerida infoRequeridaRepCL, cargaTipo stri
 			resp, err := requestmanager.Get(beego.AppConfig.String("EspaciosAcademicosService")+
 				fmt.Sprintf("espacio-academico/%s", carga.Espacio_academico_id), requestmanager.ParseResponseFormato1)
 			if err != nil {
-				logs.Error(err)
-				return requestmanager.APIResponseDTO(false, 404, nil, "EspaciosAcademicosService (espacio-academico): "+err.Error())
+				var responseXML informacionCursoXML
+				url := beego.AppConfig.String("AcademicaEspacioAcademicoService") + "informacion_curso/" + carga.Espacio_academico_id
+				if errV1 := request.GetXml(url, &responseXML); errV1 == nil && strings.TrimSpace(responseXML.Detalle.Id) != "" {
+					nombreCarga = responseXML.Detalle.EspacioAcademico + " - " + responseXML.Detalle.Grupo
+				} else {
+					logs.Error(err)
+					return requestmanager.APIResponseDTO(false, 404, nil, "EspaciosAcademicosService (espacio-academico): "+err.Error())
+				}
+			} else {
+				nombreCarga = resp.(map[string]interface{})["nombre"].(string) + " - " + resp.(map[string]interface{})["grupo"].(string)
 			}
-			nombreCarga = resp.(map[string]interface{})["nombre"].(string) + " - " + resp.(map[string]interface{})["grupo"].(string)
 			template.SetCellStyle(sheet, ini, fin, CargaStyle)
 		} else if horarioIs.TipoCarga == Actividades {
 			resp, err := requestmanager.Get(beego.AppConfig.String("PlanTrabajoDocenteService")+
@@ -252,11 +374,29 @@ func generarReporteCargaLectiva(infoRequerida infoRequeridaRepCL, cargaTipo stri
 	}
 
 	// ? resumen
+	var totalLectivas float64
+	var totalActividades float64
+	for _, carga := range infoRequerida.datosCargaPlan {
+		var h horario
+		json.Unmarshal([]byte(carga.Horario), &h)
+		if h.TipoCarga == CargaLectiva {
+			totalLectivas += carga.Duracion
+		} else if h.TipoCarga == Actividades {
+			totalActividades += carga.Duracion
+		}
+	}
+
+	// Fallback to static values if dynamic sum is zero and static values are non-zero
+	if totalLectivas == 0 && totalActividades == 0 {
+		totalLectivas = infoRequerida.datoResumen.HorasLectivas
+		totalActividades = infoRequerida.datoResumen.HorasActividades
+	}
+
 	template.SetCellValue(sheet, "M94", vinculacionFormateado)
-	template.SetCellValue(sheet, "AD94", infoRequerida.datoResumen.HorasLectivas)
+	template.SetCellValue(sheet, "AD94", totalLectivas)
 	template.SetCellValue(sheet, "M95", vinculacionFormateado)
-	template.SetCellValue(sheet, "AD95", infoRequerida.datoResumen.HorasActividades)
-	template.SetCellValue(sheet, "AD96", infoRequerida.datoResumen.HorasLectivas+infoRequerida.datoResumen.HorasActividades)
+	template.SetCellValue(sheet, "AD95", totalActividades)
+	template.SetCellValue(sheet, "AD96", totalLectivas+totalActividades)
 	template.SetCellValue(sheet, "B99", infoRequerida.datoResumen.Observacion)
 
 	if cargaTipo == "C" { // ? si carga se borra actividades y total
@@ -414,6 +554,114 @@ type infoRequeridaCumplimiento struct {
 	ListaIdPlanes []string
 }
 
+func obtenerRutaStaticReporte() string {
+	ruta := strings.TrimSpace(beego.AppConfig.String("StaticPath"))
+	fmt.Println("RUTA STATIC CONFIG:", ruta)
+	candidatos := []string{}
+	if ruta != "" {
+		candidatos = append(candidatos, ruta)
+	}
+	candidatos = append(candidatos,
+		filepath.Join(".", "static"),
+		filepath.Join("..", "static"),
+	)
+
+	for _, candidato := range candidatos {
+		if info, err := os.Stat(candidato); err == nil && info.IsDir() {
+			return candidato
+		}
+	}
+
+	if ruta != "" {
+		return ruta
+	}
+
+	return filepath.Join(".", "static")
+}
+
+func obtenerEspacioAcademicoCumplimiento(idEspacioAcademico string) (models.EspacioAcademico, error) {
+	id := strings.TrimSpace(idEspacioAcademico)
+	if id == "" || id == "NA" {
+		return models.EspacioAcademico{}, fmt.Errorf("id de espacio académico inválido")
+	}
+
+	var respuestaEspacios interface{}
+	url := beego.AppConfig.String("EspaciosAcademicosService") +
+		fmt.Sprintf("espacio-academico?query=activo:true,_id:%s&fields=_id,nombre,espacio_academico_padre,grupo,proyecto_academico_id&limit=1", id)
+	if err := request.GetJson(url, &respuestaEspacios); err == nil {
+		if data, ok := respuestaEspacios.(map[string]interface{})["Data"].([]interface{}); ok && len(data) > 0 {
+			var espacioAcademico models.EspacioAcademico
+			utils.ParseData(data[0], &espacioAcademico)
+			if strings.TrimSpace(espacioAcademico.Id) != "" {
+				return espacioAcademico, nil
+			}
+		}
+	}
+
+	var responseXML informacionCursoXML
+	url = beego.AppConfig.String("AcademicaEspacioAcademicoService") + "informacion_curso/" + id
+	if err := request.GetXml(url, &responseXML); err == nil {
+		detalle := responseXML.Detalle
+		if strings.TrimSpace(detalle.Id) != "" {
+			var proyectoID int64
+			if parsedProyectoID, errParse := strconv.ParseInt(strings.TrimSpace(detalle.CodigoProyectoAcademico), 10, 64); errParse == nil {
+				proyectoID = parsedProyectoID
+			}
+
+			return models.EspacioAcademico{
+				Id:                      id,
+				Nombre:                  strings.TrimSpace(detalle.EspacioAcademico),
+				Codigo:                  strings.TrimSpace(detalle.CodigoEspacioAcademico),
+				Espacio_academico_padre: strings.TrimSpace(detalle.CodigoEspacioAcademico),
+				Grupo:                   strings.TrimSpace(detalle.Grupo),
+				Proyecto_academico_id:   proyectoID,
+				Activo:                  true,
+			}, nil
+		}
+	}
+
+	return models.EspacioAcademico{}, fmt.Errorf("EspaciosAcademicosService (espacio-academico): no se encontraron registros de espacios académicos")
+}
+
+func obtenerNombreProyectoCumplimiento(idEspacioAcademico string, proyectoID int64) string {
+	if proyectoID > 0 {
+		var resProyecto interface{}
+		urlProyecto := beego.AppConfig.String("ProyectoAcademicoService") +
+			fmt.Sprintf("proyecto_academico_institucion/%d", proyectoID)
+		if err := request.GetJson(urlProyecto, &resProyecto); err == nil {
+			if proyecto, ok := resProyecto.(map[string]interface{})["Data"].(map[string]interface{}); ok {
+				if nombre := strings.TrimSpace(fmt.Sprintf("%v", proyecto["Nombre"])); nombre != "" {
+					return nombre
+				}
+			}
+		}
+	}
+
+	var responseXML informacionCursoXML
+	urlCurso := beego.AppConfig.String("AcademicaEspacioAcademicoService") + "informacion_curso/" + strings.TrimSpace(idEspacioAcademico)
+	if err := request.GetXml(urlCurso, &responseXML); err == nil {
+		if nombre := strings.TrimSpace(responseXML.Detalle.ProyectoAcademico); nombre != "" {
+			return nombre
+		}
+	}
+
+	if proyectoID > 0 {
+		return fmt.Sprintf("%d", proyectoID)
+	}
+
+	return ""
+}
+
+func obtenerClaveAsignaturaCumplimiento(espacio models.EspacioAcademico, idEspAcad string) string {
+	if clave := strings.TrimSpace(espacio.Espacio_academico_padre); clave != "" {
+		return clave
+	}
+	if clave := strings.TrimSpace(espacio.Codigo); clave != "" {
+		return clave
+	}
+	return strings.TrimSpace(idEspAcad)
+}
+
 func obtenerInformacionRequeridaRepCumplimiento(vigencia int64, proyectoFilter string) (infoRequeridaCumplimiento, error) {
 	PlanesPlanta := map[string]map[string]formatoCumplimiento{} // ? tercero.proyecto.formatoCumplimiento
 	PlanesTCO := map[string]map[string]formatoCumplimiento{}    // ? tercero.proyecto.formatoCumplimiento
@@ -425,7 +673,7 @@ func obtenerInformacionRequeridaRepCumplimiento(vigencia int64, proyectoFilter s
 		fmt.Sprintf("plan_docente?query=activo:true,estado_plan_id:%s,periodo_id:%d&limit=0", plan_aprobado, vigencia), requestmanager.ParseResponseFormato1)
 	if err != nil {
 		logs.Error(err)
-		return infoRequeridaCumplimiento{}, fmt.Errorf("PlanTrabajoDocenteService (plan_docente): " + err.Error())
+		return infoRequeridaCumplimiento{}, fmt.Errorf("PlanTrabajoDocenteService (plan_docente): %w", err)
 		/* badAns, code := requestmanager.MidResponseFormat("PlanTrabajoDocenteService (plan_docente)", "GET", false, map[string]interface{}{
 			"response": resp,
 			"error":    err.Error(),
@@ -443,7 +691,7 @@ func obtenerInformacionRequeridaRepCumplimiento(vigencia int64, proyectoFilter s
 			fmt.Sprintf("carga_plan?query=activo:true,plan_docente_id:%s&limit=0", plan_docente.Id), requestmanager.ParseResponseFormato1)
 		if err != nil {
 			logs.Error(err)
-			return infoRequeridaCumplimiento{}, fmt.Errorf("PlanTrabajoDocenteService (carga_plan): " + err.Error())
+			return infoRequeridaCumplimiento{}, fmt.Errorf("PlanTrabajoDocenteService (carga_plan): %w", err)
 			/* badAns, code := requestmanager.MidResponseFormat("PlanTrabajoDocenteService (carga_plan)", "GET", false, map[string]interface{}{
 				"response": resp,
 				"error":    err.Error(),
@@ -467,32 +715,22 @@ func obtenerInformacionRequeridaRepCumplimiento(vigencia int64, proyectoFilter s
 		}
 
 		for idEspAcad := range agrupacionEspacios {
-			resp, err = requestmanager.Get(beego.AppConfig.String("EspaciosAcademicosService")+
-				fmt.Sprintf("espacio-academico?query=_id:%s", idEspAcad), requestmanager.ParseResponseFormato1)
+			espacio_academico, err := obtenerEspacioAcademicoCumplimiento(idEspAcad)
 			if err != nil {
 				logs.Error(err)
-				return infoRequeridaCumplimiento{}, fmt.Errorf("EspaciosAcademicosService (espacio-academico): " + err.Error())
-				/* badAns, code := requestmanager.MidResponseFormat("EspaciosAcademicosService (espacio-academico)", "GET", false, map[string]interface{}{
-					"response": resp,
-					"error":    err.Error(),
-				})
-				c.Ctx.Output.SetStatus(code)
-				c.Data["json"] = badAns
-				c.ServeJSON()
-				return */
+				return infoRequeridaCumplimiento{}, err
 			}
-			espacio_academico := models.EspacioAcademico{}
-			utils.ParseData(resp.([]interface{})[0], &espacio_academico)
 
 			docenteId := plan_docente.Docente_id
 			projectId := fmt.Sprintf("%d", espacio_academico.Proyecto_academico_id)
 
 			if (proyectoFilter == "0") || (proyectoFilter == projectId) {
+				claveAsignatura := obtenerClaveAsignaturaCumplimiento(espacio_academico, idEspAcad)
 				resp, err = requestmanager.Get(beego.AppConfig.String("ProyectoAcademicoService")+
 					fmt.Sprintf("proyecto_academico_institucion/%s", projectId), requestmanager.ParseResonseNoFormat)
 				if err != nil {
 					logs.Error(err)
-					return infoRequeridaCumplimiento{}, fmt.Errorf("ProyectoAcademicoService (proyecto_academico_institucion): " + err.Error())
+					return infoRequeridaCumplimiento{}, fmt.Errorf("ProyectoAcademicoService (proyecto_academico_institucion): %w", err)
 					/* badAns, code := requestmanager.MidResponseFormat("ProyectoAcademicoService (proyecto_academico_institucion)", "GET", false, map[string]interface{}{
 						"response": resp,
 						"error":    err.Error(),
@@ -513,13 +751,13 @@ func obtenerInformacionRequeridaRepCumplimiento(vigencia int64, proyectoFilter s
 						}
 					}
 					PlanesPlanta[docenteId][projectId] = formatoCumplimiento{
-						Proyecto:      resp.(map[string]interface{})["Nombre"].(string),
+						Proyecto:      obtenerNombreProyectoCumplimiento(idEspAcad, espacio_academico.Proyecto_academico_id),
 						HorasLectivas: PlanesPlanta[docenteId][projectId].HorasLectivas + agrupacionEspacios[idEspAcad],
 						Asignaturas:   PlanesPlanta[docenteId][projectId].Asignaturas,
 					}
-					PlanesPlanta[docenteId][projectId].Asignaturas[espacio_academico.Espacio_academico_padre] = asignaturaPadreGrupos{
+					PlanesPlanta[docenteId][projectId].Asignaturas[claveAsignatura] = asignaturaPadreGrupos{
 						Nombre: espacio_academico.Nombre,
-						Grupos: append(PlanesPlanta[docenteId][projectId].Asignaturas[espacio_academico.Espacio_academico_padre].Grupos, espacio_academico.Grupo),
+						Grupos: append(PlanesPlanta[docenteId][projectId].Asignaturas[claveAsignatura].Grupos, espacio_academico.Grupo),
 					}
 				} else if plan_docente.Tipo_vinculacion_id == "296" { // ? T Comp Ocacional
 					if _, ok := PlanesTCO[docenteId]; !ok {
@@ -531,13 +769,13 @@ func obtenerInformacionRequeridaRepCumplimiento(vigencia int64, proyectoFilter s
 						}
 					}
 					PlanesTCO[docenteId][projectId] = formatoCumplimiento{
-						Proyecto:      resp.(map[string]interface{})["Nombre"].(string),
+						Proyecto:      obtenerNombreProyectoCumplimiento(idEspAcad, espacio_academico.Proyecto_academico_id),
 						HorasLectivas: PlanesTCO[docenteId][projectId].HorasLectivas + agrupacionEspacios[idEspAcad],
 						Asignaturas:   PlanesTCO[docenteId][projectId].Asignaturas,
 					}
-					PlanesTCO[docenteId][projectId].Asignaturas[espacio_academico.Espacio_academico_padre] = asignaturaPadreGrupos{
+					PlanesTCO[docenteId][projectId].Asignaturas[claveAsignatura] = asignaturaPadreGrupos{
 						Nombre: espacio_academico.Nombre,
-						Grupos: append(PlanesTCO[docenteId][projectId].Asignaturas[espacio_academico.Espacio_academico_padre].Grupos, espacio_academico.Grupo),
+						Grupos: append(PlanesTCO[docenteId][projectId].Asignaturas[claveAsignatura].Grupos, espacio_academico.Grupo),
 					}
 				} else if plan_docente.Tipo_vinculacion_id == "298" { // ? Med T Ocacional
 					if _, ok := PlanesMTO[docenteId]; !ok {
@@ -549,13 +787,13 @@ func obtenerInformacionRequeridaRepCumplimiento(vigencia int64, proyectoFilter s
 						}
 					}
 					PlanesMTO[docenteId][projectId] = formatoCumplimiento{
-						Proyecto:      resp.(map[string]interface{})["Nombre"].(string),
+						Proyecto:      obtenerNombreProyectoCumplimiento(idEspAcad, espacio_academico.Proyecto_academico_id),
 						HorasLectivas: PlanesMTO[docenteId][projectId].HorasLectivas + agrupacionEspacios[idEspAcad],
 						Asignaturas:   PlanesMTO[docenteId][projectId].Asignaturas,
 					}
-					PlanesMTO[docenteId][projectId].Asignaturas[espacio_academico.Espacio_academico_padre] = asignaturaPadreGrupos{
+					PlanesMTO[docenteId][projectId].Asignaturas[claveAsignatura] = asignaturaPadreGrupos{
 						Nombre: espacio_academico.Nombre,
-						Grupos: append(PlanesMTO[docenteId][projectId].Asignaturas[espacio_academico.Espacio_academico_padre].Grupos, espacio_academico.Grupo),
+						Grupos: append(PlanesMTO[docenteId][projectId].Asignaturas[claveAsignatura].Grupos, espacio_academico.Grupo),
 					}
 				}
 				ListaIdPlanes = append(ListaIdPlanes, plan_docente.Id)
@@ -563,29 +801,17 @@ func obtenerInformacionRequeridaRepCumplimiento(vigencia int64, proyectoFilter s
 
 		}
 
-		resp, err := requestmanager.Get(beego.AppConfig.String("TercerosService")+
-			fmt.Sprintf("datos_identificacion?query=Activo:true,TerceroId__Id:%v&fields=TerceroId,Numero,TipoDocumentoId&sortby=FechaExpedicion,Id&order=desc&limit=1",
-				plan_docente.Docente_id), requestmanager.ParseResonseNoFormat)
+		datos_identificacion, err := obtenerDocumentoIdentificacionDocente(plan_docente.Docente_id)
 		if err != nil {
 			logs.Error(err)
-			return infoRequeridaCumplimiento{}, fmt.Errorf("TercerosService (datos_identificacion): " + err.Error())
-			/* badAns, code := requestmanager.MidResponseFormat("TercerosService (datos_identificacion)", "GET", false, map[string]interface{}{
-				"response": resp,
-				"error":    err.Error(),
-			})
-			c.Ctx.Output.SetStatus(code)
-			c.Data["json"] = badAns
-			c.ServeJSON()
-			return */
+			return infoRequeridaCumplimiento{}, fmt.Errorf("TercerosService (datos_identificacion): %w", err)
 		}
-		datos_identificacion := models.DatosIdentificacion{}
-		utils.ParseData(resp.([]interface{})[0], &datos_identificacion)
 
 		resp, err = requestmanager.Get(beego.AppConfig.String("ParametroService")+
 			fmt.Sprintf("parametro/%s", plan_docente.Tipo_vinculacion_id), requestmanager.ParseResponseFormato1)
 		if err != nil {
 			logs.Error(err)
-			return infoRequeridaCumplimiento{}, fmt.Errorf("ParametroService (parametro): " + err.Error())
+			return infoRequeridaCumplimiento{}, fmt.Errorf("ParametroService (parametro): %w", err)
 			/* badAns, code := requestmanager.MidResponseFormat("ParametroService (parametro)", "GET", false, map[string]interface{}{
 				"response": resp,
 				"error":    err.Error(),
@@ -603,32 +829,56 @@ func obtenerInformacionRequeridaRepCumplimiento(vigencia int64, proyectoFilter s
 
 		if plan_docente.Tipo_vinculacion_id == "293" || plan_docente.Tipo_vinculacion_id == "294" { // ? Carrera T Comp || Carrera Med T
 			if _, ok := PlanesPlanta[plan_docente.Docente_id]; ok {
+				obs := ""
+				if v, okv := datoResumen["observacion"]; okv && v != nil {
+					if s, okS := v.(string); okS {
+						obs = s
+					} else {
+						obs = fmt.Sprintf("%v", v)
+					}
+				}
 				PlanesPlanta[plan_docente.Docente_id]["actividades"] = formatoCumplimiento{
 					Nombre:      utils.FormatNameTercero(datos_identificacion.TerceroId),
 					Documento:   datos_identificacion.Numero,
 					Vinculacion: infoVinculacion.Nombre,
 					Actividades: agrupacionActividades,
-					Observacion: datoResumen["observacion"].(string),
+					Observacion: obs,
 				}
 			}
 		} else if plan_docente.Tipo_vinculacion_id == "296" { // ? T Comp Ocacional
 			if _, ok := PlanesTCO[plan_docente.Docente_id]; ok {
+				obs := ""
+				if v, okv := datoResumen["observacion"]; okv && v != nil {
+					if s, okS := v.(string); okS {
+						obs = s
+					} else {
+						obs = fmt.Sprintf("%v", v)
+					}
+				}
 				PlanesTCO[plan_docente.Docente_id]["actividades"] = formatoCumplimiento{
 					Nombre:      utils.FormatNameTercero(datos_identificacion.TerceroId),
 					Documento:   datos_identificacion.Numero,
 					Vinculacion: infoVinculacion.Nombre,
 					Actividades: agrupacionActividades,
-					Observacion: datoResumen["observacion"].(string),
+					Observacion: obs,
 				}
 			}
 		} else if plan_docente.Tipo_vinculacion_id == "298" { // ? Med T Ocacional
 			if _, ok := PlanesMTO[plan_docente.Docente_id]; ok {
+				obs := ""
+				if v, okv := datoResumen["observacion"]; okv && v != nil {
+					if s, okS := v.(string); okS {
+						obs = s
+					} else {
+						obs = fmt.Sprintf("%v", v)
+					}
+				}
 				PlanesMTO[plan_docente.Docente_id]["actividades"] = formatoCumplimiento{
 					Nombre:      utils.FormatNameTercero(datos_identificacion.TerceroId),
 					Documento:   datos_identificacion.Numero,
 					Vinculacion: infoVinculacion.Nombre,
 					Actividades: agrupacionActividades,
-					Observacion: datoResumen["observacion"].(string),
+					Observacion: obs,
 				}
 			}
 		}
@@ -642,8 +892,8 @@ func generarReporteCumplimiento(infoRequerida infoRequeridaCumplimiento) request
 	inBog, _ := time.LoadLocation("America/Bogota")
 	horaes := time.Now().In(inBog).Format("02/01/2006 15:04:05")
 
-	path := beego.AppConfig.String("StaticPath")
-	template, errt := excelize.OpenFile(path + "/templates/Verif_Cump_PTD.xlsx")
+	path := obtenerRutaStaticReporte()
+	template, errt := excelize.OpenFile(filepath.Join(path, "templates", "Verif_Cump_PTD.xlsx"))
 	if errt != nil {
 		logs.Error(errt)
 		return requestmanager.APIResponseDTO(false, 404, nil, "ReporteVerifCumpPTD (reading_template): "+errt.Error())
@@ -1105,30 +1355,331 @@ func generarReporteCumplimiento(infoRequerida infoRequeridaCumplimiento) request
 	}, "Report Generation successful")
 }
 
+type consolidadoActividadFila struct {
+	Documento       string
+	NombreDocente   string
+	CodigoActividad string
+	Actividad       string
+	Horas           float64
+	Periodo         string
+	TipoVinculacion string
+	Proyecto        string
+	CodigoProyecto  string
+}
+
+type infoRequeridaConsolidadoActividades struct {
+	Filas []consolidadoActividadFila
+}
+
+func RepConsolidadoActividadesDocente(vigencia int64, proyecto string) requestmanager.APIResponse {
+	info, errinfo := obtenerInformacionRequeridaRepConsolidadoActividades(vigencia, proyecto)
+	if errinfo != nil {
+		logs.Error(errinfo)
+		return requestmanager.APIResponseDTO(false, 404, nil, errinfo.Error())
+	}
+	return generarReporteConsolidadoActividades(info)
+}
+
+func obtenerInformacionRequeridaRepConsolidadoActividades(vigencia int64, proyectoFilter string) (infoRequeridaConsolidadoActividades, error) {
+	if strings.TrimSpace(proyectoFilter) == "" {
+		proyectoFilter = "0"
+	}
+
+	periodoNombre := obtenerNombrePeriodoConsolidado(vigencia)
+
+	estadoAprobadoResp, err := requestmanager.Get(beego.AppConfig.String("PlanTrabajoDocenteService")+
+		"estado_plan?query=activo:true,codigo_abreviacion:APR&fields=_id&limit=1", requestmanager.ParseResponseFormato1)
+	if err != nil {
+		logs.Error(err)
+		return infoRequeridaConsolidadoActividades{}, fmt.Errorf("PlanTrabajoDocenteService (estado_plan): %w", err)
+	}
+
+	estadoPlan := []models.EstadoPlan{}
+	utils.ParseData(estadoAprobadoResp, &estadoPlan)
+	if len(estadoPlan) == 0 {
+		return infoRequeridaConsolidadoActividades{}, fmt.Errorf("PlanTrabajoDocenteService (estado_plan): no se encontró estado APR")
+	}
+
+	plan_aprobado := estadoPlan[0].Id
+	resp, err := requestmanager.Get(beego.AppConfig.String("PlanTrabajoDocenteService")+
+		fmt.Sprintf("plan_docente?query=activo:true,estado_plan_id:%s,periodo_id:%d&limit=0", plan_aprobado, vigencia), requestmanager.ParseResponseFormato1)
+	if err != nil {
+		logs.Error(err)
+		return infoRequeridaConsolidadoActividades{}, fmt.Errorf("PlanTrabajoDocenteService (plan_docente): %w", err)
+	}
+
+	lista_planes := []models.PlanDocente{}
+	utils.ParseData(resp, &lista_planes)
+
+	filas := []consolidadoActividadFila{}
+	for _, plan_docente := range lista_planes {
+		datos_identificacion, err := obtenerDocumentoIdentificacionDocente(plan_docente.Docente_id)
+		if err != nil {
+			logs.Error(err)
+			return infoRequeridaConsolidadoActividades{}, fmt.Errorf("TercerosService (datos_identificacion): %w", err)
+		}
+
+		resp, err = requestmanager.Get(beego.AppConfig.String("ParametroService")+
+			fmt.Sprintf("parametro/%s", plan_docente.Tipo_vinculacion_id), requestmanager.ParseResponseFormato1)
+		if err != nil {
+			logs.Error(err)
+			return infoRequeridaConsolidadoActividades{}, fmt.Errorf("ParametroService (parametro): %w", err)
+		}
+		infoVinculacion := models.Parametro{}
+		utils.ParseData(resp, &infoVinculacion)
+
+		resp, err = requestmanager.Get(beego.AppConfig.String("PlanTrabajoDocenteService")+
+			fmt.Sprintf("carga_plan?query=activo:true,plan_docente_id:%s&limit=0", plan_docente.Id), requestmanager.ParseResponseFormato1)
+		if err != nil {
+			logs.Error(err)
+			return infoRequeridaConsolidadoActividades{}, fmt.Errorf("PlanTrabajoDocenteService (carga_plan): %w", err)
+		}
+		carga_plan := []models.CargaPlan{}
+		utils.ParseData(resp, &carga_plan)
+
+		for _, carga := range carga_plan {
+			nombreDocente := utils.FormatNameTercero(datos_identificacion.TerceroId)
+			if carga.Espacio_academico_id != "" && carga.Espacio_academico_id != "NA" {
+				espacio, err := obtenerEspacioAcademicoCumplimiento(carga.Espacio_academico_id)
+				if err != nil {
+					logs.Error(err)
+					return infoRequeridaConsolidadoActividades{}, err
+				}
+
+				proyectoId := fmt.Sprintf("%d", espacio.Proyecto_academico_id)
+				proyectoNombre := obtenerNombreProyectoCumplimiento(carga.Espacio_academico_id, espacio.Proyecto_academico_id)
+				codigoActividad := strings.TrimSpace(espacio.Codigo_abreviacion)
+				if codigoActividad == "" {
+					codigoActividad = strings.TrimSpace(espacio.Codigo)
+				}
+				filas = append(filas, consolidadoActividadFila{
+					Documento:       datos_identificacion.Numero,
+					NombreDocente:   nombreDocente,
+					CodigoActividad: "HL",
+					Actividad:       "Horas lectivas",
+					Horas:           carga.Duracion,
+					Periodo:         periodoNombre,
+					TipoVinculacion: infoVinculacion.Nombre,
+					Proyecto:        proyectoNombre,
+					CodigoProyecto:  proyectoId,
+				})
+			}
+
+			if carga.Actividad_id != "" && carga.Actividad_id != "NA" {
+				actividad, err := obtenerDetalleActividadConsolidado(carga.Actividad_id)
+				if err != nil {
+					logs.Error(err)
+					return infoRequeridaConsolidadoActividades{}, fmt.Errorf("PlanTrabajoDocenteService (actividad): %w", err)
+				}
+
+				codigoActividad := actividad.Codigo_abreviacion
+
+				filas = append(filas, consolidadoActividadFila{
+					Documento:       datos_identificacion.Numero,
+					NombreDocente:   nombreDocente,
+					CodigoActividad: codigoActividad,
+					Actividad:       actividad.Nombre,
+					Horas:           carga.Duracion,
+					Periodo:         periodoNombre,
+					TipoVinculacion: infoVinculacion.Nombre,
+					Proyecto:        "",
+					CodigoProyecto:  "",
+				})
+			}
+		}
+	}
+
+	sort.Slice(filas, func(i, j int) bool {
+		if filas[i].TipoVinculacion != filas[j].TipoVinculacion {
+			return filas[i].TipoVinculacion < filas[j].TipoVinculacion
+		}
+		if filas[i].NombreDocente != filas[j].NombreDocente {
+			return filas[i].NombreDocente < filas[j].NombreDocente
+		}
+		if filas[i].Actividad != filas[j].Actividad {
+			return filas[i].Actividad < filas[j].Actividad
+		}
+		return filas[i].Horas < filas[j].Horas
+	})
+
+	return infoRequeridaConsolidadoActividades{Filas: filas}, nil
+}
+
+func obtenerDetalleActividadConsolidado(idActividad string) (models.Actividad, error) {
+	id := strings.TrimSpace(idActividad)
+	if id == "" || id == "NA" {
+		return models.Actividad{}, fmt.Errorf("id de actividad inválido")
+	}
+
+	resp, err := requestmanager.Get(beego.AppConfig.String("PlanTrabajoDocenteService")+
+		fmt.Sprintf("actividad/%s", id), requestmanager.ParseResponseFormato1)
+	if err != nil {
+		logs.Error("actividad/%s", id)
+		return models.Actividad{}, err
+	}
+
+	actividad := models.Actividad{}
+	if data, ok := resp.(map[string]interface{}); ok {
+		utils.ParseData(data, &actividad)
+	}
+
+	if strings.TrimSpace(actividad.Nombre) == "" {
+		actividad.Nombre = strings.TrimSpace(idActividad)
+	}
+
+	return actividad, nil
+}
+
+func obtenerNombrePeriodoConsolidado(vigencia int64) string {
+	resp, err := requestmanager.Get(beego.AppConfig.String("ParametroService")+
+		fmt.Sprintf("periodo/%d", vigencia), requestmanager.ParseResponseFormato1)
+	if err != nil {
+		logs.Error(err)
+		return fmt.Sprintf("%d", vigencia)
+	}
+
+	periodo := models.Periodo{}
+	utils.ParseData(resp, &periodo)
+	if strings.TrimSpace(periodo.Nombre) != "" {
+		return periodo.Nombre
+	}
+
+	return fmt.Sprintf("%d", vigencia)
+}
+
+func agruparFilasConsolidadoActividades(filas []consolidadoActividadFila) []consolidadoActividadFila {
+	grouped := map[string]consolidadoActividadFila{}
+	order := []string{}
+
+	for _, fila := range filas {
+		key := fmt.Sprintf("%s|%s|%s|%s|%s|%s|%s|%s",
+			strings.TrimSpace(fila.Documento),
+			strings.TrimSpace(fila.NombreDocente),
+			strings.TrimSpace(fila.CodigoActividad),
+			strings.TrimSpace(fila.Actividad),
+			strings.TrimSpace(fila.Periodo),
+			strings.TrimSpace(fila.TipoVinculacion),
+			strings.TrimSpace(fila.Proyecto),
+			strings.TrimSpace(fila.CodigoProyecto),
+		)
+		if existing, ok := grouped[key]; ok {
+			existing.Horas += fila.Horas
+			grouped[key] = existing
+		} else {
+			grouped[key] = fila
+			order = append(order, key)
+		}
+	}
+
+	result := make([]consolidadoActividadFila, 0, len(order))
+	for _, key := range order {
+		result = append(result, grouped[key])
+	}
+	return result
+}
+
+func generarReporteConsolidadoActividades(infoRequerida infoRequeridaConsolidadoActividades) requestmanager.APIResponse {
+	file := excelize.NewFile()
+	sheet := "Consolidado Actividades"
+	file.SetSheetName("Sheet1", sheet)
+
+	headers := []string{"Documento", "Nombre docente", "Codigo actividad", "Actividad", "Horas", "Periodo", "Tipo vinculacion", "Proyecto", "Codigo proyecto"}
+	for index, header := range headers {
+		cell, _ := excelize.CoordinatesToCellName(index+1, 1)
+		file.SetCellValue(sheet, cell, header)
+	}
+
+	headerStyle, err := file.NewStyle(&excelize.Style{
+		Alignment: &excelize.Alignment{Horizontal: "center", Vertical: "center", WrapText: true},
+		Font:      &excelize.Font{Bold: true, Color: "FFFFFF"},
+		Fill:      excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"1F4E78"}},
+		Border: []excelize.Border{
+			{Type: "left", Style: 1, Color: "000000"},
+			{Type: "right", Style: 1, Color: "000000"},
+			{Type: "top", Style: 1, Color: "000000"},
+			{Type: "bottom", Style: 1, Color: "000000"},
+		},
+	})
+	if err != nil {
+		logs.Error(err)
+		return requestmanager.APIResponseDTO(false, 404, nil, "ReporteConsolidadoActividadesDocente (style): "+err.Error())
+	}
+	file.SetCellStyle(sheet, "A1", "I1", headerStyle)
+
+	file.SetColWidth(sheet, "A", "A", 15)
+	file.SetColWidth(sheet, "B", "B", 30)
+	file.SetColWidth(sheet, "C", "C", 18)
+	file.SetColWidth(sheet, "D", "D", 35)
+	file.SetColWidth(sheet, "E", "E", 12)
+	file.SetColWidth(sheet, "F", "F", 18)
+	file.SetColWidth(sheet, "G", "G", 20)
+	file.SetColWidth(sheet, "H", "H", 30)
+	file.SetColWidth(sheet, "I", "I", 18)
+
+	rowIndex := 2
+	filas := agruparFilasConsolidadoActividades(infoRequerida.Filas)
+	for _, fila := range filas {
+		file.SetCellValue(sheet, fmt.Sprintf("A%d", rowIndex), fila.Documento)
+		file.SetCellValue(sheet, fmt.Sprintf("B%d", rowIndex), fila.NombreDocente)
+		file.SetCellValue(sheet, fmt.Sprintf("C%d", rowIndex), fila.CodigoActividad)
+		file.SetCellValue(sheet, fmt.Sprintf("D%d", rowIndex), fila.Actividad)
+		file.SetCellValue(sheet, fmt.Sprintf("E%d", rowIndex), fila.Horas)
+		file.SetCellValue(sheet, fmt.Sprintf("F%d", rowIndex), fila.Periodo)
+		file.SetCellValue(sheet, fmt.Sprintf("G%d", rowIndex), fila.TipoVinculacion)
+		file.SetCellValue(sheet, fmt.Sprintf("H%d", rowIndex), fila.Proyecto)
+		file.SetCellValue(sheet, fmt.Sprintf("I%d", rowIndex), fila.CodigoProyecto)
+		rowIndex++
+	}
+
+	buffer, err := file.WriteToBuffer()
+	if err != nil {
+		logs.Error(err)
+		return requestmanager.APIResponseDTO(false, 404, nil, "ReporteConsolidadoActividadesDocente (writing_file): "+err.Error())
+	}
+
+	encodedFileExcel := base64.StdEncoding.EncodeToString(buffer.Bytes())
+	return requestmanager.APIResponseDTO(true, 200, map[string]interface{}{
+		"excel":  encodedFileExcel,
+		"nombre": "Consolidado_Actividades.xlsx",
+	}, "Report Generation successful")
+}
+
 // funciones transversales
 func consultarInfoEspacioFisico(sede_id, edificio_id, salon_id string) (interface{}, error) {
-	sede, err := requestmanager.Get(beego.AppConfig.String("OikosService")+fmt.Sprintf("espacio_fisico?query=Id:%s&fields=Id,Nombre,CodigoAbreviacion&limit=1", sede_id),
-		requestmanager.ParseResonseNoFormat)
+	var sede, edificio, salon map[string]interface{}
+	var err error
 
-	if err != nil {
-		return nil, err
+	if sede_id == "0" || sede_id == "NA" || sede_id == "" {
+		sede = map[string]interface{}{"Id": 0, "Nombre": "No asignado", "CodigoAbreviacion": "NA"}
+	} else {
+		sede, err = obtenerEspacioFisicoOikos(sede_id)
+		if err != nil {
+			sede = map[string]interface{}{"Id": 0, "Nombre": "No asignado", "CodigoAbreviacion": "NA"}
+		}
 	}
-	edificio, err := requestmanager.Get(beego.AppConfig.String("OikosService")+fmt.Sprintf("espacio_fisico?query=Id:%s&fields=Id,Nombre,CodigoAbreviacion&limit=1", edificio_id),
-		requestmanager.ParseResonseNoFormat)
 
-	if err != nil {
-		return nil, err
+	if edificio_id == "0" || edificio_id == "NA" || edificio_id == "" {
+		edificio = map[string]interface{}{"Id": 0, "Nombre": "No asignado", "CodigoAbreviacion": "NA"}
+	} else {
+		edificio, err = obtenerEspacioFisicoOikos(edificio_id)
+		if err != nil {
+			edificio = map[string]interface{}{"Id": 0, "Nombre": "No asignado", "CodigoAbreviacion": "NA"}
+		}
 	}
-	salon, err := requestmanager.Get(beego.AppConfig.String("OikosService")+fmt.Sprintf("espacio_fisico?query=Id:%s&fields=Id,Nombre,CodigoAbreviacion&limit=1", salon_id),
-		requestmanager.ParseResonseNoFormat)
-	if err != nil {
-		return nil, err
+
+	if salon_id == "0" || salon_id == "NA" || salon_id == "" {
+		salon = map[string]interface{}{"Id": 0, "Nombre": "No asignado", "CodigoAbreviacion": "NA"}
+	} else {
+		salon, err = obtenerEspacioFisicoOikos(salon_id)
+		if err != nil {
+			salon = map[string]interface{}{"Id": 0, "Nombre": "No asignado", "CodigoAbreviacion": "NA"}
+		}
 	}
 
 	return map[string]interface{}{
-		"sede":     sede.([]interface{})[0],
-		"edificio": edificio.([]interface{})[0],
-		"salon":    salon.([]interface{})[0],
+		"sede":     sede,
+		"edificio": edificio,
+		"salon":    salon,
 	}, nil
 }
 

@@ -1,12 +1,17 @@
 package services
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/astaxie/beego"
 	"github.com/astaxie/beego/logs"
+	"github.com/k0kubun/pp"
 	"github.com/udistrital/trabajo_docente_mid/models"
 	"github.com/udistrital/trabajo_docente_mid/utils"
 	request "github.com/udistrital/utils_oas/request"
@@ -22,6 +27,9 @@ func DefinePTD(body map[string]interface{}) requestmanager.APIResponse {
 	for _, carga := range body["carga_plan"].([]interface{}) {
 		var resColocacion map[string]interface{}
 		var resCarga map[string]interface{}
+		cargaIDRespuesta := obtenerStringDesdeMapa(carga.(map[string]interface{}), "id")
+		espacioAcademicoIDRespuesta := obtenerStringDesdeMapa(carga.(map[string]interface{}), "espacio_academico_id")
+		cargaID := strings.TrimSpace(cargaIDRespuesta)
 
 		espacioFisico := map[string]interface{}{
 			"sede_id":     carga.(map[string]interface{})["sede_id"],
@@ -52,15 +60,17 @@ func DefinePTD(body map[string]interface{}) requestmanager.APIResponse {
 		bodyCarga := map[string]interface{}{
 			"espacio_academico_id": utils.GetOrDefault(carga.(map[string]interface{})["espacio_academico_id"], "NA"),
 			"actividad_id":         utils.GetOrDefault(carga.(map[string]interface{})["actividad_id"], "NA"),
-			"id":                   utils.GetOrDefault(carga.(map[string]interface{})["id"], "NA"),
 			"plan_docente_id":      utils.GetOrDefault(carga.(map[string]interface{})["plan_docente_id"], "NA"),
 			"hora_inicio":          utils.GetOrDefault(carga.(map[string]interface{})["hora_inicio"], "NA"),
 			"duracion":             utils.GetOrDefault(carga.(map[string]interface{})["duracion"], "NA"),
 			"salon_id":             utils.GetOrDefault(carga.(map[string]interface{})["salon_id"], "NA"),
 			"activo":               utils.GetOrDefault(carga.(map[string]interface{})["activo"], "NA"),
 		}
+		if cargaID, ok := carga.(map[string]interface{})["id"]; ok && cargaID != nil && fmt.Sprintf("%v", cargaID) != "" && fmt.Sprintf("%v", cargaID) != "NA" {
+			bodyCarga["id"] = cargaID
+		}
 
-		if carga.(map[string]interface{})["id"] == nil {
+		if cargaID == "" || cargaID == "NA" {
 			fmt.Println("ruta creacion ", beego.AppConfig.String("HorarioService")+"colocacion-espacio-academico/")
 			if errPostPlacement := request.SendJson(beego.AppConfig.String("HorarioService")+"colocacion-espacio-academico/",
 				"POST", &resColocacion, bodyColocacion); errPostPlacement == nil {
@@ -72,50 +82,77 @@ func DefinePTD(body map[string]interface{}) requestmanager.APIResponse {
 						if resCarga["Success"].(bool) {
 							resultadoCargas = append(resultadoCargas, map[string]interface{}{"id": resCarga["Data"].(map[string]interface{})["_id"], "creado": true})
 						} else {
-							resultadoCargas = append(resultadoCargas, map[string]interface{}{"id": carga.(map[string]interface{})["espacio_academico_id"], "creado": false})
+							resultadoCargas = append(resultadoCargas, map[string]interface{}{"id": cargaIDRespuesta, "espacio_academico_id": espacioAcademicoIDRespuesta, "creado": false})
 						}
 					}
 				} else {
-					resultadoCargas = append(resultadoCargas, map[string]interface{}{"id": carga.(map[string]interface{})["espacio_academico_id"], "creado": false})
+					resultadoCargas = append(resultadoCargas, map[string]interface{}{"id": cargaIDRespuesta, "espacio_academico_id": espacioAcademicoIDRespuesta, "creado": false})
 				}
 			}
-		} else if carga.(map[string]interface{})["id"] == "colocacionModuloHorario" {
-			bodyCarga["colocacion_espacio_academico_id"] = carga.(map[string]interface{})["colocacion_id"]
-			if errPostCarga := request.SendJson(beego.AppConfig.String("PlanTrabajoDocenteService")+"carga_plan/",
-				"POST", &resCarga, bodyCarga); errPostCarga == nil {
-				if resCarga["Success"].(bool) {
-					resultadoCargas = append(resultadoCargas, map[string]interface{}{"id": resCarga["Data"].(map[string]interface{})["_id"], "creado": true})
+		} else if cargaID == "colocacionModuloHorario" {
+			// Para fichas traidas desde modulo horario se crea siempre una nueva colocacion.
+			if errPostPlacement := request.SendJson(beego.AppConfig.String("HorarioService")+"colocacion-espacio-academico/",
+				"POST", &resColocacion, bodyColocacion); errPostPlacement == nil {
+				if resColocacion["Success"].(bool) {
+					bodyCarga["colocacion_espacio_academico_id"] = resColocacion["Data"].(map[string]interface{})["_id"]
+					if errPostCarga := request.SendJson(beego.AppConfig.String("PlanTrabajoDocenteService")+"carga_plan/",
+						"POST", &resCarga, bodyCarga); errPostCarga == nil {
+						if resCarga["Success"].(bool) {
+							resultadoCargas = append(resultadoCargas, map[string]interface{}{"id": resCarga["Data"].(map[string]interface{})["_id"], "creado": true})
+						} else {
+							resultadoCargas = append(resultadoCargas, map[string]interface{}{"id": cargaIDRespuesta, "espacio_academico_id": espacioAcademicoIDRespuesta, "creado": false})
+						}
+					}
 				} else {
-					resultadoCargas = append(resultadoCargas, map[string]interface{}{"id": carga.(map[string]interface{})["espacio_academico_id"], "creado": false})
+					resultadoCargas = append(resultadoCargas, map[string]interface{}{"id": cargaIDRespuesta, "espacio_academico_id": espacioAcademicoIDRespuesta, "creado": false})
 				}
-			}
-			if errPutColocacion := request.SendJson(beego.AppConfig.String("HorarioService")+"colocacion-espacio-academico/"+carga.(map[string]interface{})["colocacion_id"].(string),
-				"PUT", &resColocacion, bodyColocacion); errPutColocacion == nil {
 			}
 		} else {
 			var planTrabajoData map[string]interface{}
 			if errPlanTrabajo := request.GetJson(beego.AppConfig.String("PlanTrabajoDocenteService")+"carga_plan/"+carga.(map[string]interface{})["id"].(string), &planTrabajoData); errPlanTrabajo == nil {
 				if planTrabajoData["Success"].(bool) {
 					if colId, colExists := planTrabajoData["Data"].(map[string]interface{})["colocacion_espacio_academico_id"]; colExists {
-						if errPutColocacion := request.SendJson(beego.AppConfig.String("HorarioService")+"colocacion-espacio-academico/"+colId.(string),
-							"PUT", &resColocacion, bodyColocacion); errPutColocacion == nil {
-							if resColocacion["Success"].(bool) {
-								bodyCarga["colocacion_espacio_academico_id"] = resColocacion["Data"].(map[string]interface{})["_id"]
-								if errPutCarga := request.SendJson(beego.AppConfig.String("PlanTrabajoDocenteService")+"carga_plan/"+carga.(map[string]interface{})["id"].(string),
-									"PUT", &resCarga, bodyCarga); errPutCarga == nil {
-									if resCarga["Success"].(bool) {
-										resultadoCargas = append(resultadoCargas, map[string]interface{}{"id": resCarga["Data"].(map[string]interface{})["_id"], "actualizado": true})
-									} else {
-										resultadoCargas = append(resultadoCargas, map[string]interface{}{"id": carga.(map[string]interface{})["espacio_academico_id"], "actualizado": false})
+						colocacionID := fmt.Sprintf("%v", colId)
+						colocacionActual, existeColocacion := obtenerColocacionHoraria(colocacionID)
+
+						if existeColocacion && colocacionEquivalente(colocacionActual, bodyColocacion) {
+							if errPutColocacion := request.SendJson(beego.AppConfig.String("HorarioService")+"colocacion-espacio-academico/"+colocacionID,
+								"PUT", &resColocacion, bodyColocacion); errPutColocacion == nil {
+								if resColocacion["Success"].(bool) {
+									bodyCarga["colocacion_espacio_academico_id"] = colocacionID
+									if errPutCarga := request.SendJson(beego.AppConfig.String("PlanTrabajoDocenteService")+"carga_plan/"+carga.(map[string]interface{})["id"].(string),
+										"PUT", &resCarga, bodyCarga); errPutCarga == nil {
+										if resCarga["Success"].(bool) {
+											resultadoCargas = append(resultadoCargas, map[string]interface{}{"id": resCarga["Data"].(map[string]interface{})["_id"], "actualizado": true})
+										} else {
+											resultadoCargas = append(resultadoCargas, map[string]interface{}{"id": cargaIDRespuesta, "espacio_academico_id": espacioAcademicoIDRespuesta, "actualizado": false})
+										}
 									}
+								} else {
+									resultadoCargas = append(resultadoCargas, map[string]interface{}{"id": cargaIDRespuesta, "espacio_academico_id": espacioAcademicoIDRespuesta, "actualizado": false})
 								}
-							} else {
-								resultadoCargas = append(resultadoCargas, map[string]interface{}{"id": carga.(map[string]interface{})["espacio_academico_id"], "actualizado": false})
+							}
+						} else {
+							if errPostPlacement := request.SendJson(beego.AppConfig.String("HorarioService")+"colocacion-espacio-academico/",
+								"POST", &resColocacion, bodyColocacion); errPostPlacement == nil {
+								if resColocacion["Success"].(bool) {
+									bodyCarga["colocacion_espacio_academico_id"] = resColocacion["Data"].(map[string]interface{})["_id"]
+									if errPutCarga := request.SendJson(beego.AppConfig.String("PlanTrabajoDocenteService")+"carga_plan/"+carga.(map[string]interface{})["id"].(string),
+										"PUT", &resCarga, bodyCarga); errPutCarga == nil {
+										if resCarga["Success"].(bool) {
+											resultadoCargas = append(resultadoCargas, map[string]interface{}{"id": resCarga["Data"].(map[string]interface{})["_id"], "actualizado": true})
+										} else {
+											resultadoCargas = append(resultadoCargas, map[string]interface{}{"id": cargaIDRespuesta, "espacio_academico_id": espacioAcademicoIDRespuesta, "actualizado": false})
+										}
+									}
+								} else {
+									resultadoCargas = append(resultadoCargas, map[string]interface{}{"id": cargaIDRespuesta, "espacio_academico_id": espacioAcademicoIDRespuesta, "actualizado": false})
+								}
 							}
 						}
 					} else {
-						if errPutColocacion := request.SendJson(beego.AppConfig.String("HorarioService")+"colocacion-espacio-academico/",
-							"POST", &resColocacion, bodyColocacion); errPutColocacion == nil {
+						if errPostPlacement := request.SendJson(beego.AppConfig.String("HorarioService")+"colocacion-espacio-academico/",
+							"POST", &resColocacion, bodyColocacion); errPostPlacement == nil {
 							if resColocacion["Success"].(bool) {
 								bodyCarga["colocacion_espacio_academico_id"] = resColocacion["Data"].(map[string]interface{})["_id"]
 								if errPutCarga := request.SendJson(beego.AppConfig.String("PlanTrabajoDocenteService")+"carga_plan/"+carga.(map[string]interface{})["id"].(string),
@@ -123,11 +160,11 @@ func DefinePTD(body map[string]interface{}) requestmanager.APIResponse {
 									if resCarga["Success"].(bool) {
 										resultadoCargas = append(resultadoCargas, map[string]interface{}{"id": resCarga["Data"].(map[string]interface{})["_id"], "actualizado": true})
 									} else {
-										resultadoCargas = append(resultadoCargas, map[string]interface{}{"id": carga.(map[string]interface{})["espacio_academico_id"], "actualizado": false})
+										resultadoCargas = append(resultadoCargas, map[string]interface{}{"id": cargaIDRespuesta, "espacio_academico_id": espacioAcademicoIDRespuesta, "actualizado": false})
 									}
 								}
 							} else {
-								resultadoCargas = append(resultadoCargas, map[string]interface{}{"id": carga.(map[string]interface{})["espacio_academico_id"], "actualizado": false})
+								resultadoCargas = append(resultadoCargas, map[string]interface{}{"id": cargaIDRespuesta, "espacio_academico_id": espacioAcademicoIDRespuesta, "actualizado": false})
 							}
 						}
 					}
@@ -167,6 +204,416 @@ func DefinePTD(body map[string]interface{}) requestmanager.APIResponse {
 	resultado["carga_plan"] = resultadoCargas
 
 	return requestmanager.APIResponseDTO(true, 200, resultado)
+}
+
+// AprobarPlanesTrabajoDocente aprueba en lote los planes seleccionados desde verificar PTD.
+func AprobarPlanesTrabajoDocente(body map[string]interface{}, authHeader string) requestmanager.APIResponse {
+	planDocenteIDs := extraerIDsPlanoDocente(body["plan_docente_ids"])
+	if len(planDocenteIDs) == 0 {
+		return requestmanager.APIResponseDTO(false, 400, nil, "No se recibieron planes para aprobar")
+	}
+
+	responsableID := body["responsable_id"]
+	if strings.TrimSpace(fmt.Sprintf("%v", responsableID)) == "" || fmt.Sprintf("%v", responsableID) == "<nil>" {
+		return requestmanager.APIResponseDTO(false, 400, nil, "No se recibió el responsable de la aprobación")
+	}
+
+	observacion := strings.TrimSpace(fmt.Sprintf("%v", body["observacion"]))
+	estadoAprobadoID, err := obtenerEstadoPlanIDPorCodigo("APR")
+	if err != nil {
+		return requestmanager.APIResponseDTO(false, 404, nil, err.Error())
+	}
+
+	resultados := make([]map[string]interface{}, 0, len(planDocenteIDs))
+	aprobados := 0
+	fallidos := 0
+
+	for _, planDocenteID := range planDocenteIDs {
+		// Propagamos el token de autorización del usuario para que la firma electrónica
+		// y el cargue de soporte PTD en Nuxeo se realicen bajo su contexto autenticado.
+		if err := aprobarPlanDocente(planDocenteID, estadoAprobadoID, observacion, responsableID, authHeader); err != nil {
+			fallidos++
+			resultados = append(resultados, map[string]interface{}{
+				"id":       planDocenteID,
+				"aprobado": false,
+				"error":    err.Error(),
+			})
+			continue
+		}
+
+		aprobados++
+		resultados = append(resultados, map[string]interface{}{
+			"id":       planDocenteID,
+			"aprobado": true,
+		})
+	}
+
+	return requestmanager.APIResponseDTO(true, 200, map[string]interface{}{
+		"total":      len(planDocenteIDs),
+		"aprobados":  aprobados,
+		"fallidos":   fallidos,
+		"resultados": resultados,
+	})
+}
+
+func obtenerStringDesdeMapa(mapa map[string]interface{}, clave string) string {
+	if valor, ok := mapa[clave]; ok && valor != nil {
+		return fmt.Sprintf("%v", valor)
+	}
+	return ""
+}
+
+func extraerIDsPlanoDocente(valor interface{}) []string {
+	ids := []string{}
+	idsVistos := map[string]struct{}{}
+
+	coleccion, ok := valor.([]interface{})
+	if !ok {
+		return ids
+	}
+
+	for _, item := range coleccion {
+		id := strings.TrimSpace(fmt.Sprintf("%v", item))
+		if id == "" || id == "<nil>" {
+			continue
+		}
+		if _, existe := idsVistos[id]; existe {
+			continue
+		}
+		idsVistos[id] = struct{}{}
+		ids = append(ids, id)
+	}
+
+	return ids
+}
+
+func obtenerEstadoPlanIDPorCodigo(codigo string) (string, error) {
+	var estadoPlan map[string]interface{}
+	urlEstado := beego.AppConfig.String("PlanTrabajoDocenteService") + fmt.Sprintf("estado_plan?query=codigo_abreviacion:%s&limit=1", codigo)
+	if err := request.GetJson(urlEstado, &estadoPlan); err != nil {
+		return "", fmt.Errorf("no fue posible consultar el estado de plan %s: %v", codigo, err)
+	}
+
+	data, ok := estadoPlan["Data"].([]interface{})
+	if !ok || len(data) == 0 {
+		return "", fmt.Errorf("no se encontró el estado de plan %s", codigo)
+	}
+
+	estado, ok := data[0].(map[string]interface{})
+	if !ok {
+		return "", fmt.Errorf("respuesta inválida al consultar el estado de plan %s", codigo)
+	}
+
+	estadoID := strings.TrimSpace(fmt.Sprintf("%v", estado["_id"]))
+	if estadoID == "" || estadoID == "<nil>" {
+		return "", fmt.Errorf("no se encontró el identificador del estado de plan %s", codigo)
+	}
+
+	return estadoID, nil
+}
+
+func aprobarPlanDocente(planDocenteID, estadoAprobadoID, observacion string, responsableID interface{}, authHeader string) error {
+	var planDocente map[string]interface{}
+	urlPlanDocente := beego.AppConfig.String("PlanTrabajoDocenteService") + "plan_docente/" + planDocenteID
+	if err := request.GetJson(urlPlanDocente, &planDocente); err != nil {
+		return fmt.Errorf("no fue posible consultar el plan docente %s: %v", planDocenteID, err)
+	}
+
+	data, ok := planDocente["Data"].(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("respuesta inválida al consultar el plan docente %s", planDocenteID)
+	}
+
+	respuesta := map[string]interface{}{}
+	if respuestaActual, ok := data["respuesta"]; ok && respuestaActual != nil {
+		if err := json.Unmarshal([]byte(fmt.Sprintf("%v", respuestaActual)), &respuesta); err != nil {
+			respuesta = map[string]interface{}{}
+		}
+	}
+
+	respuesta["concertado"] = true
+	respuesta["observacion"] = observacion
+	respuesta["responsable_id"] = responsableID
+
+	data["respuesta"] = toJSONString(respuesta)
+	data["estado_plan_id"] = estadoAprobadoID
+
+	// -- INICIO LOGICA DE FIRMA ELECTRÓNICA Y ALMACENAMIENTO DE SOPORTE --
+	logs.Info(fmt.Sprintf("Iniciando proceso de firma electrónica para PlanDocenteID: %s, DocenteID: %v, ResponsableID: %v", planDocenteID, data["docente_id"], responsableID))
+
+	// 1. Convertir y parsear los identificadores del plan docente (docente, vinculación, periodo) a int64
+	// para poder pasárselos como argumentos a la función de generación del reporte.
+	docenteVal, err1 := strconv.ParseInt(fmt.Sprintf("%v", data["docente_id"]), 10, 64)
+	vinculacionVal, err2 := strconv.ParseInt(fmt.Sprintf("%v", data["tipo_vinculacion_id"]), 10, 64)
+	periodoVal, err3 := strconv.ParseInt(fmt.Sprintf("%v", data["periodo_id"]), 10, 64)
+	if err1 != nil || err2 != nil || err3 != nil {
+		logs.Error(fmt.Sprintf("[Firma Electrónica] Error al parsear identificadores del plan docente para firma: %v, %v, %v", err1, err2, err3))
+		return fmt.Errorf("error al parsear identificadores del plan docente para firma: %v, %v, %v", err1, err2, err3)
+	}
+
+	// 2. Generar el reporte del Plan de Trabajo Docente (PTD) en formato PDF.
+	// Se pasa el tipo de carga "CA" (Carga Académica + Actividades).
+	logs.Info(fmt.Sprintf("[Firma Electrónica] Generando reporte de carga académica para Docente: %d, Vinculación: %d, Periodo: %d", docenteVal, vinculacionVal, periodoVal))
+	respReporte := RepCargaLectiva(docenteVal, vinculacionVal, periodoVal, "CA")
+	if !respReporte.Success {
+		logs.Error(fmt.Sprintf("[Firma Electrónica] Error al generar reporte para firma: %v", respReporte.Message))
+		return fmt.Errorf("error al generar reporte para firma: %v", respReporte.Message)
+	}
+
+	// 3. Extraer la cadena en formato Base64 del PDF generado a partir de la respuesta del reporte.
+	reporteData, ok := respReporte.Data.(map[string]interface{})
+	if !ok {
+		logs.Error("[Firma Electrónica] Formato de reporte de carga lectiva inválido")
+		return fmt.Errorf("formato de reporte de carga lectiva inválido")
+	}
+
+	pdfBase64, ok := reporteData["pdf"].(string)
+	if !ok {
+		logs.Error("[Firma Electrónica] No se encontró PDF en el reporte generado")
+		return fmt.Errorf("no se encontró PDF en el reporte generado")
+	}
+	logs.Info("[Firma Electrónica] Reporte PDF base64 generado exitosamente")
+
+	// 4. Consultar los datos de identificación del Docente y del Coordinador (Responsable)
+	// en TercerosService para incluirlos como firmantes oficiales del documento.
+	docenteInfo, errDoc := obtenerDocumentoIdentificacionDocente(fmt.Sprintf("%v", data["docente_id"]))
+	if errDoc != nil {
+		logs.Error(fmt.Sprintf("[Firma Electrónica] Error al obtener identificación del docente: %v", errDoc))
+		return fmt.Errorf("error al obtener identificación del docente: %v", errDoc)
+	}
+
+	responsableInfo, errResp := obtenerDocumentoIdentificacionDocente(fmt.Sprintf("%v", responsableID))
+	if errResp != nil {
+		logs.Error(fmt.Sprintf("[Firma Electrónica] Error al obtener identificación del responsable: %v", errResp))
+		return fmt.Errorf("error al obtener identificación del responsable: %v", errResp)
+	}
+
+	// 5. Estructurar los firmantes del documento según el formato que requiere el microservicio de firma electrónica.
+	firmantes := []map[string]interface{}{
+		{
+			"nombre":         docenteInfo.TerceroId.NombreCompleto,
+			"cargo":          "Docente",
+			"tipoId":         docenteInfo.TipoDocumentoId.CodigoAbreviacion,
+			"identificacion": docenteInfo.Numero,
+		},
+		{
+			"nombre":         responsableInfo.TerceroId.NombreCompleto,
+			"cargo":          "Coordinador",
+			"tipoId":         responsableInfo.TipoDocumentoId.CodigoAbreviacion,
+			"identificacion": responsableInfo.Numero,
+		},
+	}
+	logs.Info(fmt.Sprintf("[Firma Electrónica] Firmas configuradas: Docente (%s) y Coordinador (%s)", docenteInfo.TerceroId.NombreCompleto, responsableInfo.TerceroId.NombreCompleto))
+
+	// 6. Consultar dinámicamente el Tipo de Documento con la abreviación "SOPPLTRDOC"
+	tipoDocumentoID := 73 // Fallback por defecto a 73 por seguridad
+	var resTipoDoc []map[string]interface{}
+	urlTipoDoc := beego.AppConfig.String("DocumentoService") + "v1/tipo_documento?query=CodigoAbreviacion:SOPPLTRDOC,Activo:true&fields=Id&limit=1"
+
+	fmt.Printf("[Firma Electrónica - Console Log] Consultando TipoDocumento en: %s\n", urlTipoDoc)
+	logs.Info(fmt.Sprintf("[Firma Electrónica] Consultando TipoDocumento en: %s", urlTipoDoc))
+
+	if errTipoDoc := request.GetJson(urlTipoDoc, &resTipoDoc); errTipoDoc == nil {
+		fmt.Printf("[Firma Electrónica - Console Log] Respuesta obtenida exitosamente del endpoint: %+v\n", resTipoDoc)
+		logs.Info(fmt.Sprintf("[Firma Electrónica] Respuesta recibida del TipoDocumento: %+v", resTipoDoc))
+		if len(resTipoDoc) > 0 && resTipoDoc[0]["Id"] != nil {
+			if idFloat, ok := resTipoDoc[0]["Id"].(float64); ok {
+				tipoDocumentoID = int(idFloat)
+				fmt.Printf("[Firma Electrónica - Console Log] ID de TipoDocumento obtenido dinámicamente: %d\n", tipoDocumentoID)
+				logs.Info(fmt.Sprintf("[Firma Electrónica] TipoDocumento ID obtenido dinámicamente: %d", tipoDocumentoID))
+			} else {
+				fmt.Println("[Firma Electrónica - Console Log] Error al parsear el ID, usando fallback 73")
+				logs.Warn("[Firma Electrónica] No se pudo parsear el ID de TipoDocumento como float64, usando fallback 73")
+			}
+		} else {
+			fmt.Println("[Firma Electrónica - Console Log] Respuesta vacía de TipoDocumento, usando fallback 73")
+			logs.Warn("[Firma Electrónica] La respuesta de TipoDocumento está vacía, usando fallback 73")
+		}
+	} else {
+		fmt.Printf("[Firma Electrónica - Console Log] Error al consumir el endpoint: %v. Usando fallback 73\n", errTipoDoc)
+		logs.Error(fmt.Sprintf("[Firma Electrónica] Error al consultar TipoDocumento, usando fallback 73: %v", errTipoDoc))
+	}
+
+	// 7. Preparar el cuerpo del mensaje (payload) para consumir el microservicio de firma electrónica.
+	nombreArchivo := fmt.Sprintf("PTD_Firmado_IdDoce_%v_IdCoor_%v", data["docente_id"], responsableID)
+	sendFileDataandSigners := []map[string]interface{}{
+		{
+			"IdTipoDocumento": tipoDocumentoID,
+			"nombre":          nombreArchivo,
+			"metadatos":       map[string]interface{}{},
+			"descripcion":     "",
+			"file":            pdfBase64,
+			"firmantes":       firmantes,
+			"representantes":  []interface{}{},
+		},
+	}
+
+	// Imprimir el body para depurar e inspeccionar la estructura enviada sin el base64 que es muy extenso
+	bodyImpresion := make([]map[string]interface{}, len(sendFileDataandSigners))
+	for i, item := range sendFileDataandSigners {
+		itemCopy := make(map[string]interface{})
+		for k, v := range item {
+			if k == "file" {
+				itemCopy[k] = "<BASE64_Omitido_por_Longitud>"
+			} else {
+				itemCopy[k] = v
+			}
+		}
+		bodyImpresion[i] = itemCopy
+	}
+	logs.Info("[Firma Electrónica] Payload JSON enviado (sin base64):")
+	pp.Println(bodyImpresion)
+
+	// 7. Consumir el endpoint del FirmaElectronicaMidService para estampar la firma electrónica
+	// y almacenar el documento en el Gestor Documental Nuxeo.
+	var respGD interface{}
+
+	// =========================================================================
+	// OPCIÓN 1: Consumo Directo por Intranet (pruebasapi2 port 8560) - ACTIVO
+	// =========================================================================
+	// Nota: En pruebasapi2 (puerto 8560), el microservicio es gestor_documental_mid, por lo que el path es "document/firma_electronica".
+	// Si se utiliza el microservicio independiente firma_electronica_mid directo en la intranet, se puede usar "firma_electronica".
+
+	//urlFirmaDirecta := beego.AppConfig.String("FirmaElectronicaMidService") + "document/firma_electronica"
+	urlFirmaDirecta := beego.AppConfig.String("FirmaElectronicaMidService") + "firma_electronica"
+	logs.Info(fmt.Sprintf("[Firma Electrónica] Enviando petición directa a servicio: %s", urlFirmaDirecta))
+	if err := request.SendJson(urlFirmaDirecta, "POST", &respGD, sendFileDataandSigners); err != nil {
+		logs.Error(fmt.Sprintf("[Firma Electrónica] Error al enviar firma electrónica directa: %v", err))
+		return fmt.Errorf("error al enviar firma electrónica directa: %v", err)
+	}
+
+	// =========================================================================
+	// OPCIÓN 2: Consumo a través de WSO2 Gateway (Con propagación de Token) - COMENTADO
+	// =========================================================================
+
+	/*
+		urlFirmaGateway := beego.AppConfig.String("FirmaElectronicaMidService") + "firma_electronica"
+		logs.Info(fmt.Sprintf("[Firma Electrónica] Enviando petición a Gateway WSO2: %s", urlFirmaGateway))
+		if err := sendJsonWithAuth(urlFirmaGateway, "POST", &respGD, sendFileDataandSigners, authHeader); err != nil {
+			logs.Error(fmt.Sprintf("[Firma Electrónica] Error al enviar firma electrónica vía WSO2 Gateway: %v", err))
+			return fmt.Errorf("error al enviar firma electrónica vía WSO2 Gateway: %v", err)
+		}
+	*/
+
+	// 8. Procesar y extraer el ID del documento firmado obtenido de la respuesta del servicio de firma.
+	// Se soporta de forma segura tanto respuestas mapeadas {"res": {"Id": 123}} como arreglos de las mismas [{"res": {"Id": 123}}].
+	var documentID int
+	idFound := false
+
+	if respGDMap, ok := respGD.(map[string]interface{}); ok {
+		if res, ok := respGDMap["res"].(map[string]interface{}); ok {
+			if idVal, ok := res["Id"]; ok {
+				if idFloat, ok := idVal.(float64); ok {
+					documentID = int(idFloat)
+					idFound = true
+				}
+			}
+		}
+	} else if respGDSlice, ok := respGD.([]interface{}); ok && len(respGDSlice) > 0 {
+		if firstElem, ok := respGDSlice[0].(map[string]interface{}); ok {
+			if res, ok := firstElem["res"].(map[string]interface{}); ok {
+				if idVal, ok := res["Id"]; ok {
+					if idFloat, ok := idVal.(float64); ok {
+						documentID = int(idFloat)
+						idFound = true
+					}
+				}
+			} else if idVal, ok := firstElem["Id"]; ok {
+				if idFloat, ok := idVal.(float64); ok {
+					documentID = int(idFloat)
+					idFound = true
+				}
+			}
+		}
+	}
+
+	if !idFound {
+		logs.Error(fmt.Sprintf("[Firma Electrónica] No se pudo obtener el ID del documento firmado de la respuesta: %v", respGD))
+		return fmt.Errorf("no se pudo obtener el ID del documento firmado de la respuesta: %v", respGD)
+	}
+
+	// 9. Asignar el ID del documento firmado al campo de soporte documental del plan
+	data["soporte_documental"] = strconv.Itoa(documentID)
+	logs.Info(fmt.Sprintf("[Firma Electrónica] Firma completada exitosamente. ID de Soporte Documental: %d", documentID))
+	// -- FIN LOGICA DE FIRMA ELECTRÓNICA --
+
+	var planDocentePut map[string]interface{}
+	if err := request.SendJson(urlPlanDocente, "PUT", &planDocentePut, data); err != nil {
+		return fmt.Errorf("no fue posible actualizar el plan docente %s: %v", planDocenteID, err)
+	}
+
+	if success, ok := planDocentePut["Success"].(bool); ok && !success {
+		return fmt.Errorf("el servicio rechazó la actualización del plan docente %s", planDocenteID)
+	}
+
+	return nil
+}
+
+func toJSONString(data map[string]interface{}) string {
+	resultado, err := json.Marshal(data)
+	if err != nil {
+		return "{}"
+	}
+	return string(resultado)
+}
+
+func obtenerColocacionHoraria(colocacionID string) (map[string]interface{}, bool) {
+	if strings.TrimSpace(colocacionID) == "" {
+		return nil, false
+	}
+
+	var response map[string]interface{}
+	if errGetColocacion := request.GetJson(beego.AppConfig.String("HorarioService")+"colocacion-espacio-academico/"+colocacionID, &response); errGetColocacion == nil {
+		if response["Success"].(bool) {
+			if data, ok := response["Data"].(map[string]interface{}); ok {
+				return data, true
+			}
+		}
+	}
+
+	return nil, false
+}
+
+func colocacionEquivalente(actual map[string]interface{}, esperado map[string]interface{}) bool {
+	if actual == nil || esperado == nil {
+		return false
+	}
+
+	compararTexto := func(clave string) bool {
+		return fmt.Sprintf("%v", actual[clave]) == fmt.Sprintf("%v", esperado[clave])
+	}
+
+	return compararTexto("EspacioAcademicoId") &&
+		compararTexto("EspacioFisicoId") &&
+		compararTexto("PeriodoId") &&
+		jsonEquivalente(fmt.Sprintf("%v", actual["ColocacionEspacioAcademico"]), fmt.Sprintf("%v", esperado["ColocacionEspacioAcademico"])) &&
+		jsonEquivalente(fmt.Sprintf("%v", actual["ResumenColocacionEspacioFisico"]), fmt.Sprintf("%v", esperado["ResumenColocacionEspacioFisico"]))
+}
+
+func jsonEquivalente(izquierda string, derecha string) bool {
+	if strings.TrimSpace(izquierda) == strings.TrimSpace(derecha) {
+		return true
+	}
+
+	var datoIzquierda interface{}
+	var datoDerecha interface{}
+	if err := json.Unmarshal([]byte(izquierda), &datoIzquierda); err != nil {
+		return false
+	}
+	if err := json.Unmarshal([]byte(derecha), &datoDerecha); err != nil {
+		return false
+	}
+
+	jsonIzquierda, err := json.Marshal(datoIzquierda)
+	if err != nil {
+		return false
+	}
+	jsonDerecha, err := json.Marshal(datoDerecha)
+	if err != nil {
+		return false
+	}
+
+	return string(jsonIzquierda) == string(jsonDerecha)
 }
 
 // PlanTrabajoDocenteAsignacion ...
@@ -248,9 +695,6 @@ func consultarDetallePlan(planes []interface{}, idVinculacion int64) map[string]
 			if fmt.Sprintf("%v", resCarga["Data"]) != "[]" {
 				for _, carga := range resCarga["Data"].([]interface{}) {
 					var horario map[string]interface{}
-					var sede []map[string]interface{}
-					var edificio map[string]interface{}
-					var salon map[string]interface{}
 					var resColocacion map[string]interface{}
 					var resumenColocacion map[string]interface{}
 					var sedeId string
@@ -271,25 +715,31 @@ func consultarDetallePlan(planes []interface{}, idVinculacion int64) map[string]
 									"espacio_academico_id":            carga.(map[string]interface{})["espacio_academico_id"].(string),
 									"colocacion_espacio_academico_id": carga.(map[string]interface{})["colocacion_espacio_academico_id"].(string),
 								}
-								if sedeId != "NA" {
-									if errSede := request.GetJson(beego.AppConfig.String("OikosService")+"espacio_fisico?query=Id:"+sedeId+"&fields=Id,Nombre,CodigoAbreviacion", &sede); errSede == nil {
-										cargaDetalle["sede"] = sede[0]
+								if sedeId != "NA" && sedeId != "" {
+									if esp, errEsp := obtenerEspacioFisicoOikos(sedeId); errEsp == nil {
+										cargaDetalle["sede"] = esp
+									} else {
+										cargaDetalle["sede"] = "NA"
 									}
 								} else {
 									cargaDetalle["sede"] = "NA"
 								}
 
-								if edificioId != "NA" {
-									if errEdificio := request.GetJson(beego.AppConfig.String("OikosService")+"espacio_fisico/"+edificioId, &edificio); errEdificio == nil {
-										cargaDetalle["edificio"] = edificio
+								if edificioId != "NA" && edificioId != "" {
+									if esp, errEsp := obtenerEspacioFisicoOikos(edificioId); errEsp == nil {
+										cargaDetalle["edificio"] = esp
+									} else {
+										cargaDetalle["edificio"] = "NA"
 									}
 								} else {
 									cargaDetalle["edificio"] = "NA"
 								}
 
-								if salonId != "NA" {
-									if errSalon := request.GetJson(beego.AppConfig.String("OikosService")+"espacio_fisico/"+salonId, &salon); errSalon == nil {
-										cargaDetalle["salon"] = salon
+								if salonId != "NA" && salonId != "" {
+									if esp, errEsp := obtenerEspacioFisicoOikos(salonId); errEsp == nil {
+										cargaDetalle["salon"] = esp
+									} else {
+										cargaDetalle["salon"] = "NA"
 									}
 								} else {
 									cargaDetalle["salon"] = "NA"
@@ -344,12 +794,12 @@ func consultarDetallePlan(planes []interface{}, idVinculacion int64) map[string]
 
 		// // Función duplicada para SGA V1
 		var resPreasignacion map[string]interface{}
-		if errPreasignacion := request.GetJson(beego.AppConfig.String("PlanTrabajoDocenteService")+"pre_asignacion?query=activo:true,aprobacion_docente:true,aprobacion_proyecto:true,plan_docente_id:"+plan.(map[string]interface{})["_id"].(string), &resPreasignacion); errPreasignacion == nil {
+		if errPreasignacion := request.GetJson(beego.AppConfig.String("PlanTrabajoDocenteService")+"pre_asignacion?query=activo:true,aprobacion_docente:true,plan_docente_id:"+plan.(map[string]interface{})["_id"].(string), &resPreasignacion); errPreasignacion == nil {
 			//fmt.Printf("resPreasignacion Data: %+v\n", resPreasignacion["Data"])
 			for _, preasignacion := range resPreasignacion["Data"].([]interface{}) {
 				var responseXML informacionCursoXML
 				if memEspaciosDetalle[preasignacion.(map[string]interface{})["espacio_academico_id"].(string)] == nil {
-					url := "http://" + beego.AppConfig.String("AcademicaEspacioAcademicoService") + "informacion_curso/" + preasignacion.(map[string]interface{})["espacio_academico_id"].(string)
+					url := beego.AppConfig.String("AcademicaEspacioAcademicoService") + "informacion_curso/" + preasignacion.(map[string]interface{})["espacio_academico_id"].(string)
 					if errEspacioAcademico := request.GetXml(url, &responseXML); errEspacioAcademico == nil {
 						detalle := responseXML.Detalle
 						if strings.TrimSpace(detalle.Id) != "" {
@@ -795,7 +1245,7 @@ func ListaPlanPreaprobado(vigencia, proyecto int64) requestmanager.APIResponse {
 func consultarEspaciosAcademicosInfoPadre(docente, periodo, vinculacion int64) ([]models.EspacioAcademico, error) {
 	espacios := []models.EspacioAcademico{}
 	response, err := requestmanager.Get(beego.AppConfig.String("PlanTrabajoDocenteService")+
-		fmt.Sprintf("pre_asignacion?query=activo:true,aprobacion_docente:true,aprobacion_proyecto:true,docente_id:%d,periodo_id:%d,tipo_vinculacion_id:%d&fields=espacio_academico_id", docente, periodo, vinculacion),
+		fmt.Sprintf("pre_asignacion?query=activo:true,aprobacion_docente:true,docente_id:%d,periodo_id:%d,tipo_vinculacion_id:%d&fields=espacio_academico_id", docente, periodo, vinculacion),
 		requestmanager.ParseResponseFormato1)
 	if err != nil {
 		return nil, fmt.Errorf("PlanTrabajoDocenteService (pre_asignacion): %s", err.Error())
@@ -813,4 +1263,78 @@ func consultarEspaciosAcademicosInfoPadre(docente, periodo, vinculacion int64) (
 		espacios = append(espacios, espacioacademico[0])
 	}
 	return espacios, nil
+}
+
+func sendJsonWithAuth(url string, method string, target interface{}, datajson interface{}, authHeader string) error {
+	b := new(bytes.Buffer)
+	if datajson != nil {
+		if err := json.NewEncoder(b).Encode(datajson); err != nil {
+			return fmt.Errorf("error al codificar JSON: %v", err)
+		}
+	}
+
+	client := &http.Client{}
+	req, err := http.NewRequest(method, url, b)
+	if err != nil {
+		return fmt.Errorf("error al crear petición: %v", err)
+	}
+
+	if authHeader != "" {
+		req.Header.Set("Authorization", authHeader)
+	}
+	req.Header.Set("Content-Type", "application/json; charset=UTF-8")
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("error al realizar petición HTTP: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("el servicio respondió con código %d: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	return json.NewDecoder(resp.Body).Decode(target)
+}
+
+// obtenerEspacioFisicoOikos consulta un espacio físico en Oikos por Id o por CodigoAbreviacion.
+func obtenerEspacioFisicoOikos(idOrCode string) (map[string]interface{}, error) {
+	idOrCode = strings.TrimSpace(idOrCode)
+	if idOrCode == "" || idOrCode == "0" || idOrCode == "NA" {
+		return nil, fmt.Errorf("código o ID de espacio físico inválido: %s", idOrCode)
+	}
+
+	var response []map[string]interface{}
+
+	// Si es enteramente numérico, consultamos por Id
+	if _, err := strconv.Atoi(idOrCode); err == nil {
+		url := beego.AppConfig.String("OikosService") + "espacio_fisico?query=Id:" + idOrCode + "&limit=1"
+		if errGet := request.GetJson(url, &response); errGet == nil && len(response) > 0 {
+			return response[0], nil
+		}
+
+		// Fallback directo por ID
+		var temp map[string]interface{}
+		urlDirect := beego.AppConfig.String("OikosService") + "espacio_fisico/" + idOrCode
+		if errGet := request.GetJson(urlDirect, &temp); errGet == nil {
+			if success, ok := temp["Success"].(bool); !ok || success {
+				if status, ok := temp["Status"].(string); !ok || (status != "404" && status != "400") {
+					if data, ok := temp["Data"].(map[string]interface{}); ok {
+						return data, nil
+					}
+					return temp, nil
+				}
+			}
+		}
+	}
+
+	// Consultar por CodigoAbreviacion
+	urlQuery := beego.AppConfig.String("OikosService") + "espacio_fisico?query=CodigoAbreviacion:" + idOrCode + "&limit=1"
+	if errGet := request.GetJson(urlQuery, &response); errGet == nil && len(response) > 0 {
+		return response[0], nil
+	}
+
+	return nil, fmt.Errorf("no se encontró el espacio físico con ID o código: %s", idOrCode)
 }

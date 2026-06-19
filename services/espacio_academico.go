@@ -2,6 +2,8 @@ package services
 
 import (
 	"fmt"
+	"math"
+	"strconv"
 	"strings"
 
 	"github.com/astaxie/beego"
@@ -59,8 +61,30 @@ type coordinadorUsuarioID struct {
 	CodigoCarrera string `xml:"codigo_carrera"`
 }
 
+type informacionHorariosXML struct {
+	Horarios []horarioXML `xml:"horario"`
+}
+
+type horarioXML struct {
+	IdEdificio             string `xml:"id_edificio"`
+	Periodo                string `xml:"periodo"`
+	ActivoEspacioAcademico string `xml:"activo_espacio_academico"`
+	HoraInicio             string `xml:"hora_inicio"`
+	CantidadHoras          string `xml:"cantidad_horas"`
+	Grupo                  string `xml:"grupo"`
+	IdHorario              string `xml:"id_horario"`
+	ActivoHorario          string `xml:"activo_horario"`
+	IdSalon                string `xml:"id_salon"`
+	IdEspacioAcademico     string `xml:"id_espacio_academico"`
+	IdSede                 string `xml:"id_sede"`
+	IdEspacioFisico        string `xml:"id_espacio_fisico"`
+	HoraFin                string `xml:"hora_fin"`
+	NombreEspacioAcademico string `xml:"nombre_espacio_academico"`
+	DiaSemana              string `xml:"dia_semana"`
+}
+
 func obtenerProyectosCurricularesCoordinador(documento string) ([]string, error) {
-	url := "http://" + beego.AppConfig.String("AcademicaEspacioAcademicoService") +
+	url := beego.AppConfig.String("AcademicaEspacioAcademicoService") +
 		"coordinador_usuario/" + documento
 
 	var responseXML coordinadorUsuarioXML
@@ -121,7 +145,7 @@ func ListaEspaciosAcademicosProyectoPeriodo(anio, periodo, proyecto, documentoCo
 	espaciosIds := map[string]bool{}
 
 	for _, proyectoItem := range proyectosConsulta {
-		url := "http://" + beego.AppConfig.String("AcademicaEspacioAcademicoService") +
+		url := beego.AppConfig.String("AcademicaEspacioAcademicoService") +
 			"espacios_academicos_proyecto_periodo/" + anio + "/" + periodo + "/" + proyectoItem
 
 		var responseXML espaciosAcademicosXML
@@ -157,7 +181,7 @@ func ListaEspaciosAcademicosProyectoPeriodo(anio, periodo, proyecto, documentoCo
 // ListaGruposEspacioPeriodo consulta grupos de un espacio academico
 // por anio y periodo en academica_pruebas.
 func ListaGruposEspacioPeriodo(anio, periodo, espacio string) requestmanager.APIResponse {
-	url := "http://" + beego.AppConfig.String("AcademicaEspacioAcademicoService") +
+	url := beego.AppConfig.String("AcademicaEspacioAcademicoService") +
 		"grupos_espacio_periodo/" + anio + "/" + periodo + "/" + espacio
 
 	var responseXML gruposEspacioPeriodoXML
@@ -182,7 +206,7 @@ func ListaGruposEspacioPeriodo(anio, periodo, espacio string) requestmanager.API
 
 // DetalleCursoId consulta el detalle de un curso por CUR_ID
 func DetalleCursoId(id string) requestmanager.APIResponse {
-	url := "http://" + beego.AppConfig.String("AcademicaEspacioAcademicoService") +
+	url := beego.AppConfig.String("AcademicaEspacioAcademicoService") +
 		"informacion_curso/" + id
 
 	var responseXML informacionCursoXML
@@ -204,6 +228,189 @@ func DetalleCursoId(id string) requestmanager.APIResponse {
 		"CodigoEspacioAcademico":  detalle.CodigoEspacioAcademico,
 		"EspacioAcademico":        detalle.EspacioAcademico,
 		"grupo":                   detalle.Grupo,
+	}
+
+	return requestmanager.APIResponseDTO(true, 200, response)
+}
+
+func parseNumber(value string) float64 {
+	parsed, err := strconv.ParseFloat(strings.TrimSpace(value), 64)
+	if err != nil {
+		return 0
+	}
+	return parsed
+}
+
+func formatHour(value float64) string {
+	totalMinutes := int(math.Round(value * 60))
+	hour := totalMinutes / 60
+	minute := totalMinutes % 60
+	return fmt.Sprintf("%02d:%02d", hour, minute)
+}
+
+func parseBool(value string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	return normalized == "true" || normalized == "1"
+}
+
+func resolverEspacioFisicoOikos(id string, cache map[string]map[string]interface{}) map[string]interface{} {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return map[string]interface{}{"Id": "", "Nombre": "", "CodigoAbreviacion": ""}
+	}
+
+	if cache != nil {
+		if value, ok := cache[id]; ok {
+			return value
+		}
+	}
+
+	response := map[string]interface{}{
+		"Id":                id,
+		"Nombre":            id,
+		"CodigoAbreviacion": id,
+	}
+
+	parseItem := func(oikosResp interface{}) map[string]interface{} {
+		var item map[string]interface{}
+
+		switch typed := oikosResp.(type) {
+		case []interface{}:
+			if len(typed) > 0 {
+				if data, ok := typed[0].(map[string]interface{}); ok {
+					item = data
+				}
+			}
+		case map[string]interface{}:
+			if data, ok := typed["Data"]; ok {
+				switch values := data.(type) {
+				case []interface{}:
+					if len(values) > 0 {
+						if dataMap, ok := values[0].(map[string]interface{}); ok {
+							item = dataMap
+						}
+					}
+				case map[string]interface{}:
+					item = values
+				}
+			}
+		}
+
+		return item
+	}
+
+	queryCandidates := []string{
+		"Id:" + id,
+		"CodigoAbreviacion:" + id,
+	}
+
+	for _, query := range queryCandidates {
+		url := beego.AppConfig.String("OikosService") +
+			"espacio_fisico?query=" + query + "&fields=Id,Nombre,CodigoAbreviacion&limit=1"
+
+		var oikosResp interface{}
+		if err := request.GetJson(url, &oikosResp); err == nil {
+			if item := parseItem(oikosResp); item != nil {
+				response = map[string]interface{}{
+					"Id":                fmt.Sprintf("%v", item["Id"]),
+					"Nombre":            fmt.Sprintf("%v", item["Nombre"]),
+					"CodigoAbreviacion": fmt.Sprintf("%v", item["CodigoAbreviacion"]),
+				}
+				break
+			}
+		}
+	}
+
+	if cache != nil {
+		cache[id] = response
+	}
+
+	return response
+}
+
+// InformacionHorarios consulta el endpoint de academica y transforma la respuesta
+// al formato requerido por colocacion-espacio-academico para el cliente.
+func InformacionHorarios(anio, periodo, asignaturaID, grupoID string) requestmanager.APIResponse {
+	url := beego.AppConfig.String("AcademicaEspacioAcademicoService") +
+		"informacion_horarios/" + anio + "/" + periodo + "/" + asignaturaID + "/" + grupoID
+
+	var responseXML informacionHorariosXML
+	if err := request.GetXml(url, &responseXML); err != nil {
+		logs.Error(err)
+		return requestmanager.APIResponseDTO(false, 404, nil, "No se encontraron horarios para los parametros consultados")
+	}
+
+	response := make([]map[string]interface{}, 0, len(responseXML.Horarios))
+	espaciosFisicosCache := map[string]map[string]interface{}{}
+	for _, horario := range responseXML.Horarios {
+		if !parseBool(horario.ActivoHorario) || !parseBool(horario.ActivoEspacioAcademico) {
+			continue
+		}
+
+		diaSemana := parseNumber(horario.DiaSemana)
+		horaInicio := parseNumber(horario.HoraInicio)
+		cantidadHoras := parseNumber(horario.CantidadHoras)
+		horaFin := parseNumber(horario.HoraFin)
+		if horaFin == 0 {
+			horaFin = horaInicio + cantidadHoras
+		}
+
+		posX := (diaSemana - 1) * 110
+		posY := ((horaInicio*60 - 360) / 15) * 22.5
+
+		colocacion := map[string]interface{}{
+			"dragPosition": map[string]interface{}{
+				"x": posX,
+				"y": posY,
+			},
+			"estado": 2,
+			"finalPosition": map[string]interface{}{
+				"x": posX,
+				"y": posY,
+			},
+			"horaFormato": fmt.Sprintf("%s - %s", formatHour(horaInicio), formatHour(horaFin)),
+			"horas":       cantidadHoras,
+			"prevPosition": map[string]interface{}{
+				"x": posX,
+				"y": posY,
+			},
+			"tipo": 1,
+		}
+
+		sede := resolverEspacioFisicoOikos(horario.IdSede, espaciosFisicosCache)
+		edificio := resolverEspacioFisicoOikos(horario.IdEdificio, espaciosFisicosCache)
+		salon := resolverEspacioFisicoOikos(horario.IdSalon, espaciosFisicosCache)
+
+		resumenColocacion := map[string]interface{}{
+			"colocacion": colocacion,
+			"espacio_fisico": map[string]interface{}{
+				"edificio_id": horario.IdEdificio,
+				"salon_id":    horario.IdSalon,
+				"sede_id":     horario.IdSede,
+				"sede":        sede,
+				"edificio":    edificio,
+				"salon":       salon,
+			},
+		}
+
+		espacioAcademico := map[string]interface{}{
+			"_id":                     horario.IdEspacioAcademico,
+			"activo":                  parseBool(horario.ActivoEspacioAcademico),
+			"espacio_academico_padre": nil,
+			"grupo":                   horario.Grupo,
+			"nombre":                  horario.NombreEspacioAcademico,
+		}
+
+		response = append(response, map[string]interface{}{
+			"_id":                            horario.IdHorario,
+			"EspacioAcademicoId":             horario.IdEspacioAcademico,
+			"EspacioFisicoId":                "",
+			"ColocacionEspacioAcademico":     colocacion,
+			"ResumenColocacionEspacioFisico": resumenColocacion,
+			"Periodo":                        horario.Periodo,
+			"Activo":                         parseBool(horario.ActivoHorario),
+			"EspacioAcademico":               espacioAcademico,
+		})
 	}
 
 	return requestmanager.APIResponseDTO(true, 200, response)

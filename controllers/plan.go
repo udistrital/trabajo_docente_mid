@@ -18,6 +18,7 @@ type PlanController struct {
 // URLMapping ...
 func (c *PlanController) URLMapping() {
 	c.Mapping("DefinePlanTrabajoDocente", c.DefinePlanTrabajoDocente)
+	c.Mapping("AprobarPlanesTrabajoDocente", c.AprobarPlanesTrabajoDocente)
 	c.Mapping("PlanTrabajoDocenteAsignacion", c.PlanTrabajoDocenteAsignacion)
 	c.Mapping("CopiarPlanTrabajoDocente", c.CopiarPlanTrabajoDocente)
 	c.Mapping("PlanPreaprobado", c.PlanPreaprobado)
@@ -59,6 +60,51 @@ func (c *PlanController) DefinePlanTrabajoDocente() {
 		c.Ctx.Output.SetStatus(resultado.Status)
 	}
 
+	c.ServeJSON()
+}
+
+// AprobarPlanesTrabajoDocente ...
+// @Title AprobarPlanesTrabajoDocente
+// @Description Aprueba en lote los planes de trabajo docente seleccionados
+// @Param   body        body    {}  true        "body con ids de planes y datos de aprobacion"
+// @Success 200 {}
+// @Failure 400 the request contains an incorrect parameter or no record exist
+// @router /aprobacion-masiva [put]
+func (c *PlanController) AprobarPlanesTrabajoDocente() {
+	defer errorhandler.HandlePanic(&c.Controller)
+
+	var body map[string]interface{}
+	err := json.Unmarshal(c.Ctx.Input.RequestBody, &body)
+	if err != nil {
+		logs.Error(err)
+		c.Data["json"] = requestmanager.APIResponseDTO(false, 400, nil, "Error: Parámetro(s) no válido(s) o faltante(s)")
+		c.Ctx.Output.SetStatus(400)
+		c.ServeJSON()
+		return
+	}
+
+	params := []string{"plan_docente_ids", "responsable_id"}
+	errParam := false
+	for _, param := range params {
+		if _, ok := body[param]; !ok {
+			errParam = true
+			logs.Error("No existe el parametro %s", param)
+			break
+		}
+	}
+	if errParam {
+		c.Data["json"] = requestmanager.APIResponseDTO(false, 400, nil, "Error: Parámetro(s) no válido(s) o faltante(s)")
+		c.Ctx.Output.SetStatus(400)
+		c.ServeJSON()
+		return
+	}
+
+	// Extraemos y propagamos el token de autorización para permitir que el microservicio
+	// de firma electrónica pueda autenticarse de forma transparente mediante WSO2 y con Nuxeo.
+	authHeader := c.Ctx.Input.Header("Authorization")
+	resultado := services.AprobarPlanesTrabajoDocente(body, authHeader)
+	c.Data["json"] = resultado
+	c.Ctx.Output.SetStatus(resultado.Status)
 	c.ServeJSON()
 }
 
